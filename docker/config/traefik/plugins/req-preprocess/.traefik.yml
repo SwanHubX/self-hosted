@@ -1,0 +1,16 @@
+displayName: Request Preprocessing
+summary: 请求预处理中间件，用于处理JWT凭证和session
+type: middleware
+import: github.com/SwanHubX/req-preprocess
+testData:
+  AuthUrl: ""
+  Key: |
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA61/d80yCyzy70PtWcslU
+    ezWOu02Q6GbtUesCD6mnSiBeocbQGdXejvLRbSrwA8DXyRX8fvg5TPUCFCUza8DW
+    J995UhsyIjg6w9ubNA7LbddUDLfREs7pBP7lcjU0LG17LAm9vdusgF6wb7UgGctA
+    201uiJ+NilHgf94QaSqtwjaAw6maIdACllxUMj4ZW/4lfJc6pm8YDyOVM5+eE+jE
+    yiPoLhkMuROvY9SONe0oMZRnj2O2fwjEPzwXMaWnTF7Em2cJaysgnnDA4dcxa64a
+    b1imJPMYq+AAulbAdIiz6YZoUNT12M/zgBgBJcsur4Ss5xFceJMB1N12cjfqA+S3
+    7QIDAQAB
+    -----END PUBLIC KEY-----

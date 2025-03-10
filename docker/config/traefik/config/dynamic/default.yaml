@@ -1,0 +1,10 @@
+http:
+  middlewares:
+    preprocess:
+      plugin:
+        rpp:
+          AuthUrl: "http://swanlab-server:3000/api/identity"
+    minio-host:
+      headers:
+        customRequestHeaders:
+          Host: "minio:9000"
