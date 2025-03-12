@@ -126,7 +126,7 @@ services:
   # Gateway
   traefik:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0
+    image: swanlab/traefik:v3.0
     container_name: swanlab-traefik
     ports:
       - "${EXPOSE_PORT}:80"
@@ -140,7 +140,7 @@ services:
   # Databases
   postgres:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/postgres:16.1
+    image: swanlab/postgres:16.1
     container_name: swanlab-postgres
     environment:
       TZ: UTC
@@ -156,7 +156,7 @@ services:
       retries: 5
   redis:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15
+    image: swanlab/redis-stack-server:7.2.0-v15
     container_name: swanlab-redis
     volumes:
       - ${DATA_PATH}/redis:/data
@@ -167,7 +167,7 @@ services:
       retries: 3
   clickhouse:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3
+    image: swanlab/clickhouse:24.3
     container_name: swanlab-clickhouse
     volumes:
       - ${DATA_PATH}/clickhouse:/var/lib/clickhouse/
@@ -183,7 +183,7 @@ services:
       retries: 3
   logrotate:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/logrotate:v1
+    image: swanlab/logrotate:v1
     container_name: swanlab-logrotate
     volumes:
       - swanlab-house:/data
@@ -197,7 +197,7 @@ services:
       - "traefik.enable=false"
   fluent-bit:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.0
+    image: swanlab/fluent-bit:3.0
     container_name: swanlab-fluentbit
     command: ["fluent-bit/bin/fluent-bit", "-c", "/conf/fluent-bit.conf"]
     volumes:
@@ -211,7 +211,7 @@ services:
       CLICKHOUSE_PASS: ${CLICKHOUSE_PASSWORD}
   minio:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
+    image: swanlab/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
     volumes:
       - ${DATA_PATH}/minio:/data
@@ -232,7 +232,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1
+    image: swanlab/swanlab-server:v1
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -256,7 +256,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1
+    image: swanlab/swanlab-house:v1
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -282,14 +282,14 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1
+    image: swanlab/swanlab-cloud:v1
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
         condition: service_healthy
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1
+    image: swanlab/swanlab-next:v1
     container_name: swanlab-next
     depends_on:
       swanlab-server:
