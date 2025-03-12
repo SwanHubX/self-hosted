@@ -46,3 +46,7 @@ curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/insta
 ```
 
 详细内容参考：[docker/README.md](./docker/README.md)
+
+## 开始使用
+
+请参考：[教程文档](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)

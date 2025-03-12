@@ -5,8 +5,7 @@
     <br>Self-Hosted SwanLab
 </h1>
 
-[English](./README_EN.md)
-
+[中文](./README.md)
 
 ## Quick Deployment
 
@@ -46,3 +45,7 @@ curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/insta
 ```
 
 For more details, refer to: [docker/README.md](./docker/README.md)
+
+## Start Using
+
+Refer to：[Document](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
