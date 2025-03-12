@@ -1,5 +1,7 @@
 ## 通过 Docker 部署
 
+[English](./README_EN.md)
+
 > 首先需要确保你的服务器上安装有 [docker](https://docs.docker.com/engine/install/)。如果未安装，可以参考[文档](https://yeasy.gitbook.io/docker_practice/install)，或者使用我们提供的安装脚本 [scripts/install-docker.sh](../scripts/install-docker.sh)。
 
 一切准备就绪后，直接执行 `./install.sh` 脚本即可开始部署。部署成功后会看到下面的 **SwanLab** 标志。
