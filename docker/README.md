@@ -46,12 +46,12 @@ $ ./install.sh -d /data -p 80 -s
 
 ### 执行结果
 
-脚本执行成功后，将会在当前目录下生成两个文件：
+脚本执行成功后，将会创建一个 `swanlab/` 目录，并在目录下生成两个文件：
 
 - `docker-compose.yaml`：用于 Docker Compose 的配置文件
 - `.env`：对应的密钥文件，保存数据库对应的初始化密码
 
-在当前目录下执行 `docker compose ps -a` 可以查看所有容器的运行状态：
+在 `swanlab` 目录下执行 `docker compose ps -a` 可以查看所有容器的运行状态：
 
 ```bash
 $ docker compose ps -a                                                                                                                                                                (base) 

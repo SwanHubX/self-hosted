@@ -11,4 +11,4 @@ playground
 .key
 data
 .env
-docker/docker-compose.yaml
+docker-compose.yaml

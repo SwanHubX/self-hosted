@@ -53,6 +53,8 @@ fi
 
 echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 
+mkdir swanlab && cd swanlab
+
 # Select whether to use this configuration
 if [ ! -f .env ] && [ "$SKIP_INPUT" -eq 0 ]; then
   # ---- DATA_PATH

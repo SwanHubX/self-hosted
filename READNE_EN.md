@@ -35,13 +35,13 @@ For faster deployment in China:
 Deploy from [DockerHub](https://hub.docker.com/search?q=swanlab):
 
 ```bash
-curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh | bash
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
 ```
 
 For faster deployment in China:
 
 ```bash
-curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh | bash
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh && bash install.sh
 ```
 
 For more details, refer to: [docker/README.md](./docker/README.md)
