@@ -8,41 +8,41 @@
 [English](./README_EN.md)
 
 
-## 快速部署
+## Quick Deployment
 
-### 1. 手动部署
+### 1. Manual Deployment
 
-克隆仓库：
+Clone the repository:
 
 ```bash
 git clone https://github.com/swanhubx/self-hosted.git
 cd self-hosted/docker
 ```
 
-从[DockerHub](https://hub.docker.com/search?q=swanlab)部署：
+Deploy from [DockerHub](https://hub.docker.com/search?q=swanlab):
 
 ```bash
 ./install-dockerhub.sh
 ```
 
-中国地区快速部署：
+For faster deployment in China:
 
 ```bash
 ./install.sh
 ```
 
-### 2. 一键脚本部署
+### 2. One-Click Script Deployment
 
-从[DockerHub](https://hub.docker.com/search?q=swanlab)部署：
+Deploy from [DockerHub](https://hub.docker.com/search?q=swanlab):
 
 ```bash
 curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh | bash
 ```
 
-中国地区快速部署：
+For faster deployment in China:
 
 ```bash
 curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh | bash
 ```
 
-详细内容参考：[docker/README.md](./docker/README.md)
+For more details, refer to: [docker/README.md](./docker/README.md)
