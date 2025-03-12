@@ -43,7 +43,7 @@ $ ./install.sh -d /data -p 80 -s
 
 ### Execution Results
 
-After successful script execution, two files will be generated in the current directory:
+After successful script execution, a `swanlab/` directory will be created, and two files will be generated in the current directory:
 
 - `docker-compose.yaml`: Configuration file for Docker Compose
 - `.env`: Corresponding key file, storing the initialization password for the database

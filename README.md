@@ -19,7 +19,7 @@ git clone https://github.com/swanhubx/self-hosted.git
 cd self-hosted/docker
 ```
 
-从[DockerHub](https://hub.docker.com/search?q=swanlab)部署：
+使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
 ./install-dockerhub.sh
@@ -33,16 +33,16 @@ cd self-hosted/docker
 
 ### 2. 一键脚本部署
 
-从[DockerHub](https://hub.docker.com/search?q=swanlab)部署：
+使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
-curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh | bash
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
 ```
 
 中国地区快速部署：
 
 ```bash
-curl -s https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh | bash
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh && bash install.sh
 ```
 
 详细内容参考：[docker/README.md](./docker/README.md)
