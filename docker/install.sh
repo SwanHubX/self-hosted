@@ -53,6 +53,40 @@ fi
 
 echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 
+# check if docker daemon is running
+echo "🧐 Checking if Docker is running..."
+if ! systemctl is-active docker >/dev/null 2>&1; then
+    echo "😰 ${red}Docker daemon is not running.${reset}"
+    read -p "😁 ${bold}Would you like to start Docker now? (y/n): " START_DOCKER
+    if [[ "$START_DOCKER" =~ ^[Yy]$ ]]; then
+        echo "🚀 Starting Docker service..."
+        if ! systemctl start docker; then
+            echo "❌ ${red}Failed to start Docker. You may need to run with sudo.${reset}"
+            exit 1
+        fi
+        # waiting for docker to start
+          max_attempts=5
+          attempt=1
+          echo "🚀 Starting Docker service..."
+        while [ $attempt -le $max_attempts ]; do
+            if systemctl is-active --quiet docker; then
+                echo "✅ ${green}Docker started successfully!${reset}"
+                break
+            fi
+            sleep 1
+            ((attempt++))
+        done
+        # final check
+        if ! systemctl is-active --quiet docker; then
+            echo "❌ ${red}Docker failed to start after $max_attempts second attempts${reset}"
+            exit 1
+        fi
+    else
+        echo "👋 ${yellow}Operation canceled. Docker must be running to continue.${reset}"
+        exit 1
+    fi
+fi
+
 mkdir swanlab && cd swanlab
 
 # Select whether to use this configuration
