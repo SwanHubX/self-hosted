@@ -53,6 +53,65 @@ fi
 
 echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 
+# check if docker daemon is running
+echo "🧐 Checking if Docker is running..."
+docker_not_running=0
+
+# Different platform methods
+if [[ "$(uname -s)" == "Linux" ]]; then
+    # Linux use systemctl to check
+    if ! systemctl is-active docker >/dev/null 2>&1; then
+        docker_not_running=1
+    fi
+else
+    # macOs/Windows use docker info to check
+    if ! docker info >/dev/null 2>&1; then
+        docker_not_running=1
+    fi
+fi
+
+if [[ $docker_not_running -eq 1 ]]; then
+    echo "😰 ${red}Docker daemon is not running.${reset}"
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        # Linux systems provide options for automatic startup
+        read -p "😁 ${bold}Would you like to start Docker now? (y/n): " START_DOCKER
+        if [[ "$START_DOCKER" =~ ^[Yy]$ ]]; then
+            if ! systemctl start docker; then
+                echo "❌ ${red}Failed to start Docker. You may need to run with sudo.${reset}"
+                exit 1
+            fi
+            echo "🚀 Starting Docker service..."
+            # waiting Docker startup
+            max_attempts=5
+            attempt=1
+            while [ $attempt -le $max_attempts ]; do
+                if systemctl is-active --quiet docker; then
+                    echo "✅ ${green}Docker started successfully!${reset}"
+                    break
+                fi
+                sleep 1
+                ((attempt++))
+            done
+
+            # final check
+            if ! systemctl is-active --quiet docker; then
+                echo "❌ ${red}Docker failed to start after $max_attempts second attempts${reset}"
+                exit 1
+            fi
+        else
+            echo "👋 ${yellow}Operation canceled. Docker must be running to continue.${reset}"
+            exit 1
+        fi
+    else
+        # macOS/Windows systems don't provide automatic startup options
+        echo "💡 ${yellow}Please start Docker Desktop manually and ensure it's running:"
+        echo "1. Open Docker Desktop application"
+        echo "2. Wait until the whale icon shows \"Docker Desktop is running\""
+        echo "3. Rerun this installation script${reset}"
+        exit 1
+    fi
+fi
+
 mkdir swanlab && cd swanlab
 
 # Select whether to use this configuration
@@ -231,6 +290,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+  create-buckets:
+    image: ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z
+    container_name: swanlab-minio-mc
+    networks:
+      - swanlab-net
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set myminio http://minio:9000 swanlab ${MINIO_ROOT_PASSWORD}
+        # private bucket
+        mc mb --ignore-existing myminio/swanlab-private
+        mc anonymous set private myminio/swanlab-private
+        # public bucket
+        mc mb --ignore-existing myminio/swanlab-public
+        mc anonymous set public myminio/swanlab-public
+      "
   # swanlab services
   swanlab-server:
     <<: *common
@@ -304,18 +381,6 @@ EOF
 
 # start docker services
 docker compose up -d
-
-# init minio
-sleep 10s
-docker compose exec -it minio bash -c "
-  mc alias set myminio http://127.0.0.1:9000 swanlab ${MINIO_ROOT_PASSWORD}
-  # private bucket
-  mc mb --ignore-existing myminio/swanlab-private
-  mc anonymous set private myminio/swanlab-private
-  # public bucket
-  mc mb --ignore-existing myminio/swanlab-public
-  mc anonymous set public myminio/swanlab-public
-"
 
 echo -e "${green}${bold}"
 echo "   _____                    _           _     ";

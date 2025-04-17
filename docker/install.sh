@@ -290,6 +290,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+  create-buckets:
+    image: ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z
+    container_name: swanlab-minio-mc
+    networks:
+      - swanlab-net
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set myminio http://minio:9000 swanlab ${MINIO_ROOT_PASSWORD}
+        # private bucket
+        mc mb --ignore-existing myminio/swanlab-private
+        mc anonymous set private myminio/swanlab-private
+        # public bucket
+        mc mb --ignore-existing myminio/swanlab-public
+        mc anonymous set public myminio/swanlab-public
+      "
   # swanlab services
   swanlab-server:
     <<: *common
@@ -363,18 +381,6 @@ EOF
 
 # start docker services
 docker compose up -d
-
-# init minio
-sleep 10s
-docker compose exec -it minio bash -c "
-  mc alias set myminio http://127.0.0.1:9000 swanlab ${MINIO_ROOT_PASSWORD}
-  # private bucket
-  mc mb --ignore-existing myminio/swanlab-private
-  mc anonymous set private myminio/swanlab-private
-  # public bucket
-  mc mb --ignore-existing myminio/swanlab-public
-  mc anonymous set public myminio/swanlab-public
-"
 
 echo -e "${green}${bold}"
 echo "   _____                    _           _     ";
