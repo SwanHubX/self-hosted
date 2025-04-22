@@ -311,7 +311,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.1
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -320,6 +320,7 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public
+      - DATABASE_URL_REPLICA=postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public
       - REDIS_URL=redis://default@redis:6379
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
@@ -335,7 +336,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1.1
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -361,14 +362,14 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1.1
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
         condition: service_healthy
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.1
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -390,7 +391,7 @@ echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
 echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
 echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
 echo "                                              ";
-echo " Self-Hosted Docker v1.0 - @SwanLab"
+echo " Self-Hosted Docker v1.1 - @SwanLab"
 echo -e "${reset}"
 echo "🎉 Wow, the installation is complete. Everything is perfect."
 echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
