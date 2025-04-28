@@ -50,3 +50,7 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 ## 开始使用
 
 请参考：[教程文档](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+
+## 版本更新
+v1.1（2025.4.27）
+现swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
