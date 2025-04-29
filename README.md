@@ -7,6 +7,7 @@
 
 [English](./README_EN.md)
 
+[![][dockerhub-shield]][dockerhub-link]
 
 ## 快速部署
 
@@ -54,3 +55,7 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 ## 版本更新
 v1.1（2025.4.27）
 现swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
+
+
+[dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
+[dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags

@@ -7,6 +7,8 @@
 
 [中文](./README.md)
 
+[![][dockerhub-shield]][dockerhub-link]
+
 ## Quick Deployment
 
 ### 1. Manual Deployment
@@ -49,3 +51,7 @@ For more details, refer to: [docker/README.md](./docker/README.md)
 ## Start Using
 
 Refer to：[Document](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+
+
+[dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
+[dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
