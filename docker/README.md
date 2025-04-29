@@ -71,3 +71,6 @@ swanlab-traefik      ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0            
 
 通过执行 `docker compose logs <container_name>` 可以查看每个容器的日志。
 
+### 升级
+
+执行 `./upgrade.sh` 可以进行无缝升级。

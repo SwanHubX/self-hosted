@@ -67,3 +67,7 @@ swanlab-traefik      ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0            
 ```
 
 You can view the logs of each container by executing `docker compose logs <container_name>`.
+
+### Upgrade
+
+Execute `./upgrade.sh` to upgrade seamlessly.
