@@ -23,7 +23,7 @@ if [ ! -f "swanlab/docker-compose.yaml" ]; then
 fi
 
 # confirm information
-read -p "Updating the container version will restart docker-compose. Do you agree? [y/N] " confirm
+read -p "Updating the container version will restart docker compose. Do you agree? [y/N] " confirm
 
 # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
@@ -38,7 +38,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     rm -f swanlab/docker-compose.yaml.bak
 
     # restart docker-compose
-    docker-compose -f swanlab/docker-compose.yaml pull && docker-compose -f swanlab/docker-compose.yaml up -d
+    docker compose -f swanlab/docker-compose.yaml pull && docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
 else
     echo "update canceled"
