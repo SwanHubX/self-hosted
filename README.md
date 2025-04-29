@@ -5,9 +5,14 @@
     <br>Self-Hosted SwanLab
 </h1>
 
-[English](./README_EN.md)
+<div align="center">
 
 [![][dockerhub-shield]][dockerhub-link]
+
+</div>
+
+[English](./README_EN.md)
+
 
 ## 快速部署
 
