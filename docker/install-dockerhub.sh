@@ -311,7 +311,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: swanlab/swanlab-server:v1.1
+    image: swanlab/swanlab-server:v1.1.1
     container_name: swanlab-server
     depends_on:
       postgres:
