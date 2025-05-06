@@ -33,12 +33,17 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
         s/(:v1)$/\1.1/
     }
     ' swanlab/docker-compose.yaml
-    add_replica_env
+    # add DATABASE_URL_REPLICA
+    if ! grep -q "DATABASE_URL_REPLICA" "swanlab/docker-compose.yaml"; then
+      add_replica_env
+    fi
+    # swanlab-server:v1.1.1
+    sed -i.bak 's/swanlab-server:v1.1/swanlab-server:v1.1.1/g' swanlab/docker-compose.yaml
     # delete backup
     rm -f swanlab/docker-compose.yaml.bak
 
     # restart docker-compose
-    docker compose -f swanlab/docker-compose.yaml pull && docker compose -f swanlab/docker-compose.yaml up -d
+    docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
 else
     echo "update canceled"
