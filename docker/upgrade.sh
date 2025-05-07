@@ -37,8 +37,8 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     if ! grep -q "DATABASE_URL_REPLICA" "swanlab/docker-compose.yaml"; then
       add_replica_env
     fi
-    # swanlab-server:v1.1.1
-    sed -i.bak 's/swanlab-server:v1.1/swanlab-server:v1.1.1/g' swanlab/docker-compose.yaml
+    # swanlab-server:v1.1.2
+    sed -i.bak 's/swanlab-server:v1.*/swanlab-server:v1.1.2/g' swanlab/docker-compose.yaml
     # delete backup
     rm -f swanlab/docker-compose.yaml.bak
 
