@@ -112,7 +112,7 @@ if [[ $docker_not_running -eq 1 ]]; then
     fi
 fi
 
-mkdir swanlab && cd swanlab
+mkdir -p swanlab && cd swanlab
 
 # Select whether to use this configuration
 if [ ! -f .env ] && [ "$SKIP_INPUT" -eq 0 ]; then
