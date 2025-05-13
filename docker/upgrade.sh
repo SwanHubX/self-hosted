@@ -29,7 +29,7 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     sed -i.bak -E '
-    /^[[:space:]]+image: .*swanlab.*:v1$/ {
+    /^[[:space:]]+image: .*swanlab-.*:v1$/ {
         s/(:v1)$/\1.1/
     }
     ' swanlab/docker-compose.yaml
