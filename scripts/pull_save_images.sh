@@ -26,10 +26,7 @@ for image in "${images[@]}"; do
 done
 
 # 保存镜像到文件
-for image in "${images[@]}"; do
-  filename="./swanlab_images/$(echo $image | tr '/:' '--').tar"
-  echo "Saving $image to $filename..."
-  docker save -o "$filename" "$image"
-done
+echo "正在打包所有镜像到 swanlab_images.tar.gz..."
+docker save "${images[@]}" | gzip > ./swanlab_images/swanlab_images.tar.gz
 
-echo "所有镜像下载并保存成功在swanlab_images文件夹下！"
+echo "所有镜像已打包至 swanlab_images/swanlab_images.tar.gz,可直接传输该文件!"

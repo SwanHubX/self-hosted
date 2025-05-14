@@ -24,7 +24,11 @@ $ ./install.sh
 ```
 
 ### Offline Deployment
-When the server has no network connection, you need to download all images ahead of time. You can use the [scripts/pull_save_images.sh](../scripts/pull_save_images.sh) script to download all images. After downloading, save them to a directory named `swanlab_images` in the current directory.Upload this directory to the server, and execute the command `find ./swanlab_images -name "*.tar" -exec docker load -i {} \;` to load all images into the Docker local repository. After loading is complete, execute `./install.sh` to start the installation.
+
+1. Download all images in the online environment, run the script [scripts/pull_save_images.sh](../scripts/pull_save_images.sh), which will generate a `swanlab_images.tar.gz` file in `swanlab_images/` after running, which contains all image compression packages. **Please ensure that the machine with Docker environment is available.**
+2. Upload the `swanlab_images.tar.gz` file to the target machine. (You can also use the `sftp` tool)
+3. In the current directory, run the command `gunzip -c swanlab_images.tar.gz | docker load` (The `swanlab_images.tar.gz` file generated after running `pull_save_images.sh`). Wait for the loading to succeed, and run the command `docker images` to view the image list. **Please ensure that the offline machine also has Docker environment.**
+4. Run `./install.sh` to deploy the installation.
 
 ### Configurable Items
 

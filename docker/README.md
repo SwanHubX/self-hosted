@@ -27,7 +27,11 @@ $ ./install.sh
 > `install.sh` 使用国内镜像源，如果是需要使用 [DockerHub](https://hub.docker.com/explore) 源，则可以使用 `install-dockerhub.sh` 脚本部署
 
 ### 离线部署
-在没有网络连接的场景下，需在联网的机器上提前下载好所有镜像，运行[scripts/pull_save_images.sh](../scripts/pull_save_images.sh)后会生成一个 `swanlab_images` 文件夹。将此文件夹上传至离线服务器，在当前目录运行命令`find ./swanlab_images -name "*.tar" -exec docker load -i {} \;`即可将所有镜像加载至Docker本地仓库中。镜像加载完成后，执行`./install.sh`即可进行安装。
+
+1. 在联网机器上下载镜像，运行脚本[scripts/pull_save_images.sh](../scripts/pull_save_images.sh)，该脚本运行结束后会在`swanlab_images/`下生成`swanlab_images.tar.gz`文件，该文件包含所有镜像的压缩包。**请确保下载的机器上含有Docker运行环境。**
+2. 将 `swanlab_images.tar.gz` 文件上传到目标机器上。（可配合`sftp`工具）
+3. 在上传目录下运行命令`gunzip -c swanlab_images.tar.gz | docker load`（`swanlab_images.tar.gz`为运行`pull_save_images.sh`后产生的打包镜像压缩文件），等待加载成功后运行命令`docker images`查看镜像列表，将会显示所有镜像。**请确保离线机器上也已安装Docker环境**
+4. 执行`./install.sh`即可部署安装。
 
 ### 可配置项
 
