@@ -4,7 +4,8 @@
 
 > 首先需要确保你的服务器上安装有 [docker](https://docs.docker.com/engine/install/)。如果未安装，可以参考[文档](https://yeasy.gitbook.io/docker_practice/install)，或者使用我们提供的安装脚本 [scripts/install-docker.sh](../scripts/install-docker.sh)。
 
-一切准备就绪后，直接执行 `./install.sh` 脚本即可开始部署。部署成功后会看到下面的 **SwanLab** 标志。
+### 在线部署
+服务器可以联网时，直接执行 `./install.sh` 脚本即可开始部署。部署成功后会看到下面的 **SwanLab** 标志。
 
 ```bash
 $ ./install.sh
@@ -25,6 +26,9 @@ $ ./install.sh
 
 > `install.sh` 使用国内镜像源，如果是需要使用 [DockerHub](https://hub.docker.com/explore) 源，则可以使用 `install-dockerhub.sh` 脚本部署
 
+### 离线部署
+在没有网络连接的场景下，需在联网的机器上提前下载好所有镜像，运行[scripts/pull_save_images.sh](../scripts/pull_save_images.sh)后会生成一个 `swanlab_images` 文件夹。将此文件夹上传至离线服务器，在当前目录运行命令`find ./swanlab_images -name "*.tar" -exec docker load -i {} \;`即可将所有镜像加载至Docker本地仓库中。镜像加载完成后，执行`./install.sh`即可进行安装。
+
 ### 可配置项
 
 脚本执行过程中会提示两个可配置项：
@@ -43,6 +47,8 @@ $ ./install.sh
 ```bash
 $ ./install.sh -d /data -p 80 -s
 ```
+
+
 
 ### 执行结果
 

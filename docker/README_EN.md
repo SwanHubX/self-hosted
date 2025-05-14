@@ -3,7 +3,8 @@
 [中文](./README.md)
 > First, make sure you have [docker](https://docs.docker.com/engine/install/) installed on your server. If not installed, you can refer to the [documentation](https://docs.docker.com/engine/install/), or use our installation script [scripts/install-docker.sh](../scripts/install-docker.sh).
 
-Once everything is ready, simply execute the `./install-dockerhub.sh` script to start deployment. After successful deployment, you will see the **SwanLab** logo below.
+### Online Deployment
+When the server can be connected to the network, simply execute the `./install-dockerhub.sh` script to start deployment. After successful deployment, you will see the **SwanLab** logo below.
 
 ```bash
 $ ./install.sh
@@ -21,6 +22,9 @@ $ ./install.sh
 🎉 Wow, the installation is complete. Everything is perfect.
 🥰 Congratulations, self-hosted SwanLab can be accessed using {IP}:8000
 ```
+
+### Offline Deployment
+When the server has no network connection, you need to download all images ahead of time. You can use the [scripts/pull_save_images.sh](../scripts/pull_save_images.sh) script to download all images. After downloading, save them to a directory named `swanlab_images` in the current directory.Upload this directory to the server, and execute the command `find ./swanlab_images -name "*.tar" -exec docker load -i {} \;` to load all images into the Docker local repository. After loading is complete, execute `./install.sh` to start the installation.
 
 ### Configurable Items
 
