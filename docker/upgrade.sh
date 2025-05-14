@@ -51,7 +51,6 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
 
     # add missing minio middleware if needed
     if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "swanlab/docker-compose.yaml"; then
-      echo "add missing minio middleware"
       add_minio_middleware
     fi
 
