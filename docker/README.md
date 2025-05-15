@@ -28,10 +28,10 @@ $ ./install.sh
 
 ### 离线部署
 
-1. 在联网机器上下载镜像，运行脚本[scripts/pull_save_images.sh](../scripts/pull_save_images.sh)，该脚本运行结束后会在`swanlab_images/`下生成`swanlab_images.tar.gz`文件，该文件包含所有镜像的压缩包。**请确保下载的机器上含有Docker运行环境。**
-2. 将 `swanlab_images.tar.gz` 文件上传到目标机器上。（可配合`sftp`工具）
-3. 在上传目录下运行命令`gunzip -c swanlab_images.tar.gz | docker load`（`swanlab_images.tar.gz`为运行`pull_save_images.sh`后产生的打包镜像压缩文件），等待加载成功后运行命令`docker images`查看镜像列表，将会显示所有镜像。**请确保离线机器上也已安装Docker环境**
-4. 执行`./install.sh`即可部署安装。
+1. 在联网机器上下载镜像，运行脚本 [scripts/pull-images.sh](../scripts/pull-images.sh)，该脚本运行结束后会在当前下生成`swanlab_images.tar`文件，该文件包含所有镜像的压缩包。**请确保下载的机器上含有Docker运行环境。**
+2. 将 `swanlab_images.tar` 文件上传到目标机器上。（可配合`sftp`工具）
+3. 在目标服务器上运行 `docker load -i swanlab_images.tar` 加载镜像，等待加载成功后可以通过 `docker images` 命令查看镜像列表，将会显示所有镜像。
+4. 然后跟上述在线部署一样执行 `./install.sh` 即可部署安装。
 
 ### 可配置项
 
@@ -51,8 +51,6 @@ $ ./install.sh
 ```bash
 $ ./install.sh -d /data -p 80 -s
 ```
-
-
 
 ### 执行结果
 
