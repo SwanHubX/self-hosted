@@ -284,6 +284,7 @@ services:
       - "traefik.http.routers.minio1.rule=PathPrefix(\`/swanlab-public\`)"
       - "traefik.http.routers.minio1.middlewares=minio-host@file"
       - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)"
+      - "traefik.http.routers.minio2.middlewares=minio-host@file"
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]

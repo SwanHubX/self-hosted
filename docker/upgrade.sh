@@ -16,6 +16,16 @@ add_replica_env() {
     ' swanlab/docker-compose.yaml
 }
 
+# add missing minio middleware config
+add_minio_middleware() {
+    sed -i.bak '
+    /traefik\.http\.routers\.minio2\.rule=PathPrefix/ {
+        p
+        s/.*/      - "traefik.http.routers.minio2.middlewares=minio-host@file"/
+    }
+    ' swanlab/docker-compose.yaml
+}
+
 # check docker-compose.yaml exists
 if [ ! -f "swanlab/docker-compose.yaml" ]; then
     echo "docker-compose.yaml not found, please run install.sh directly"
@@ -33,10 +43,17 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
         s/(:v1)$/\1.1/
     }
     ' swanlab/docker-compose.yaml
+
     # add DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "swanlab/docker-compose.yaml"; then
       add_replica_env
     fi
+
+    # add missing minio middleware if needed
+    if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "swanlab/docker-compose.yaml"; then
+      add_minio_middleware
+    fi
+
     # swanlab-server:v1.1.2
     sed -i.bak 's/swanlab-server:v1.*/swanlab-server:v1.1.2/g' swanlab/docker-compose.yaml
     # delete backup
