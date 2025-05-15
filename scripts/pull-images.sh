@@ -18,13 +18,11 @@ images=(
 
 # 下载镜像
 for image in "${images[@]}"; do
-  echo "Pulling $image..."
   docker pull "$image"
 done
 
 # 保存镜像到文件
-echo "正在打包所有镜像到 swanlab_images.tar.gz..."
-echo images[@]
-# docker save "${images[@]}" | gzip > ./swanlab_images.tar.gz
+echo "正在打包所有镜像到 swanlab_images.tar..."
+docker save -o ./swanlab_images.tar "${images[@]}"
 
-echo "所有镜像都打包至 swanlab_images.tar.gz，可直接上传该文件到目标服务器!"
+echo "所有镜像都打包至 swanlab_images.tar，可直接上传该文件到目标服务器!"
