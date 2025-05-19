@@ -2,6 +2,7 @@
 
 [中文](./README.md)
 > First, make sure you have [docker](https://docs.docker.com/engine/install/) installed on your server. If not installed, you can refer to the [documentation](https://docs.docker.com/engine/install/), or use our installation script [scripts/install-docker.sh](../scripts/install-docker.sh).
+> If your server does not have Docker Compose plugin, you can refer to the [documentation](https://github.com/docker/compose/) for downloading and installing. Alternatively, you can use our provided installation script [scripts/install-docker-compose.sh](../scripts/install-docker-compose.sh).
 
 ### Online Deployment
 When the server can be connected to the network, simply execute the `./install-dockerhub.sh` script to start deployment. After successful deployment, you will see the **SwanLab** logo below.
