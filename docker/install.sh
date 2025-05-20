@@ -53,6 +53,19 @@ fi
 
 echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 
+# check if docker compose is installed
+if ! docker compose version &>/dev/null;  then
+    echo "😰 ${yellow}Docker Compose may not install ${reset}"
+
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        echo "😁 ${bold}You can use the install script (${green}install-docker-compose.sh${reset})${bold} located in the scripts directory.${reset}"
+    else
+        echo "🧐 ${red}macOS/Windows detected: Docker Compose is included in Docker Desktop. Please install Docker Desktop${reset}"
+        exit 1
+    fi
+fi
+
+
 # check if docker daemon is running
 echo "🧐 Checking if Docker is running..."
 docker_not_running=0
