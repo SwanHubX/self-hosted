@@ -68,19 +68,10 @@ fi
 
 # check if docker daemon is running
 echo "🧐 Checking if Docker is running..."
-docker_not_running=0
+docker_not_running=1
 
-# Different platform methods
-if [[ "$(uname -s)" == "Linux" ]]; then
-    # Linux use systemctl to check
-    if ! systemctl is-active docker >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
-else
-    # macOs/Windows use docker info to check
-    if ! docker info >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
+if docker info >/dev/null 2>&1; then
+    docker_not_running=0
 fi
 
 if [[ $docker_not_running -eq 1 ]]; then
