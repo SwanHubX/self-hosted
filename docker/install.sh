@@ -316,7 +316,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.1.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.2
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -330,10 +330,11 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - VERSION=1.2.0
     labels:
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
       - "traefik.http.routers.swanlab-server.middlewares=preprocess@file"
-    command: bash -c "npx prisma migrate deploy && pm2-runtime app.js"
+    command: bash -c "npx prisma migrate deploy && node migrate.js && pm2-runtime app.js"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000/api/"]
       interval: 10s
@@ -341,7 +342,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1.2
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -355,6 +356,8 @@ services:
       - SH_SERVER_URL=http://swanlab-server:3000/api
       - SH_MINIO_SECRET_ID=swanlab
       - SH_MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - SH_DISTRIBUTED_ENABLE=true
+      - SH_REDIS_URL=redis://default@redis:6379
     labels:
       - "traefik.http.routers.swanlab-house.rule=PathPrefix(\`/api/house\`) || PathPrefix(\`/api/internal\`)"
       - "traefik.http.routers.swanlab-house.middlewares=preprocess@file"
@@ -367,14 +370,14 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1.2
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
         condition: service_healthy
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.2
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -396,7 +399,7 @@ echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
 echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
 echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
 echo "                                              ";
-echo " Self-Hosted Docker v1.1 - @SwanLab"
+echo " Self-Hosted Docker v1.2 - @SwanLab"
 echo -e "${reset}"
 echo "🎉 Wow, the installation is complete. Everything is perfect."
 echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
