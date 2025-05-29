@@ -127,7 +127,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
 
     # delete backup
-    # rm -f "${COMPOSE_FILE}.bak"
+    rm -f "${COMPOSE_FILE}.bak"
 
     # add new environment variable for containers config, it only can be added once and can not be update existing
     # add swanlab-house environment variable
@@ -142,8 +142,8 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_environment_var "swanlab-server" "VERSION=1.2.0"
     fi
 
-    # # restart docker-compose
-    # docker compose -f swanlab/docker-compose.yaml up -d
+    # restart docker-compose
+    docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
 else
     echo "update canceled"
