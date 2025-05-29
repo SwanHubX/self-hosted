@@ -17,13 +17,15 @@ add_replica_env() {
     ' swanlab/docker-compose.yaml
 }
 
-# add new environment variable for containers config
-add_environment_var() {
+# add new variable for containers config
+add_new_var() {
     # Arguments:
     #   : service name
-    #   : new environment variable
+    #   : label key
+    #   : new variable
     local service_name="$1"
-    local new_val="$2"
+    local label_key="$2"
+    local new_val="$3"
     local file_path="$COMPOSE_FILE"
     # check arguments
     if [[ -z "$service_name" || -z "$new_val" ]]; then
@@ -38,11 +40,13 @@ add_environment_var() {
         return 2
     }
     # do awk operation
-    awk -v service="$service_name" -v val="$new_val" '
+    awk -v service="$service_name" \
+        -v label="$label_key" \
+        -v val="$new_val" '
     BEGIN { in_service=0; inserted=0 }
     $0 ~ "^  " service ":$" { in_service=1 }
     /^  [a-zA-Z-]+:/ && !( $0 ~ "^  " service ":$") { in_service=0 }
-    in_service && /^    environment:/ {
+    in_service && $0 ~ "^    " label ":" {
         print $0
         print "      - " val
         inserted=1
@@ -56,18 +60,6 @@ add_environment_var() {
         echo "replace fail, update docker-compose.yaml locate on ${tmp_file} " >&2
         return 3
     fi
-    
-    echo "Add new environment variable ${new_val} to ${service_name} success!"
-}
-
-# add missing minio middleware config
-add_minio_middleware() {
-    sed -i.bak '
-    /traefik\.http\.routers\.minio2\.rule=PathPrefix/ {
-        p
-        s/.*/      - "traefik.http.routers.minio2.middlewares=minio-host@file"/
-    }
-    ' "$COMPOSE_FILE"
 }
 
 # update swanlab-server command config
@@ -116,11 +108,6 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_replica_env
     fi
 
-    # add missing minio middleware if needed
-    if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
-      add_minio_middleware
-    fi
-
     # update swanlab-server command
     if ! grep -q "node migrate.js" "$COMPOSE_FILE"; then
        update_server_command
@@ -129,19 +116,23 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # delete backup
     rm -f "${COMPOSE_FILE}.bak"
 
-    # add new environment variable for containers config, it only can be added once and can not be update existing
+    # add new variable for containers config, it only can be added once and can not be update existing
     # add swanlab-house environment variable
     if ! grep -q "SH_DISTRIBUTED_ENABLE" "$COMPOSE_FILE"; then
-      add_environment_var "swanlab-house" "SH_DISTRIBUTED_ENABLE=true"
+      add_new_var "swanlab-house" "environment" "SH_DISTRIBUTED_ENABLE=true"
     fi
     if ! grep -q "SH_REDIS_URL" "$COMPOSE_FILE"; then
-      add_environment_var "swanlab-house" "SH_REDIS_URL=redis://default@redis:6379"
+      add_new_var "swanlab-house" "environment" "SH_REDIS_URL=redis://default@redis:6379"
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_environment_var "swanlab-server" "VERSION=1.2.0"
+      add_new_var "swanlab-server" "environment" "VERSION=1.2.0"
     fi
 
+    # add missing minio middleware if needed
+    if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
+      add_new_var "minio" "labels" "\"traefik.http.routers.minio2.middlewares=minio-host@file\""
+    fi
     # restart docker-compose
     docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
