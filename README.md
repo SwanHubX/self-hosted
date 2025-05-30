@@ -24,6 +24,8 @@
 - Optimize: 大幅优化指标上传的性能问题
 - BugFix: 修复实验无法自动关闭的问题
 
+同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v1.2` 版本
+
 ### v1.1 (2025.4.27)
 swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
 
@@ -67,6 +69,10 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 ```
 
 详细内容参考：[docker/README.md](./docker/README.md)
+
+## 更新版本
+
+克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
 
 ## 开始使用
 
