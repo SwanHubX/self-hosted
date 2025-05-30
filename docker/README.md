@@ -82,4 +82,4 @@ swanlab-traefik      ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0            
 
 ### 升级
 
-执行 `./upgrade.sh` 可以进行无缝升级。
+执行 `./upgrade.sh` 可以进行无缝升级。可使用`./upgrade.sh file_path`来进行升级，`file_path`为`docker-compose.yaml`文件路径。，默认为`swanlab/docker-compose.yaml`
