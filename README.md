@@ -24,7 +24,7 @@
 - Optimize: 大幅优化指标上传的性能问题
 - BugFix: 修复实验无法自动关闭的问题
 
-同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v1.2` 版本
+> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v1.2` 版本
 
 ### v1.1 (2025.4.27)
 swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
