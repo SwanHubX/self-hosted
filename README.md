@@ -13,6 +13,21 @@
 
 [English](./README_EN.md)
 
+## 版本更新
+
+### v1.2 (2025.5.30)
+- Feature: 上线折线图创建和编辑功能，配置图表功能增加数据源选择功能，支持单张图表显示不同的指标
+- Feature: 支持在实验添加Tag标签
+- Feature: 支持折线图Log Scale；支持分组拖拽；增加swanlab.OpenApi开放接口
+- Feature: 新增「默认空间」和「默认可见性」配置，用于指定项目默认创建在对应的组织下
+- Optimize: 优化大量指标上传导致部分数据丢失的问题
+- Optimize: 大幅优化指标上传的性能问题
+- BugFix: 修复实验无法自动关闭的问题
+
+### v1.1 (2025.4.27)
+swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
+
+
 
 ## 快速部署
 
@@ -57,9 +72,6 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 请参考：[教程文档](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
 
-## 版本更新
-v1.1（2025.4.27）
-现swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
 
 
 [dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
