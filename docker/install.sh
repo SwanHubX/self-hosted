@@ -318,7 +318,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.2
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.2.1
     container_name: swanlab-server
     depends_on:
       postgres:
