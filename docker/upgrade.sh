@@ -87,6 +87,23 @@ update_version() {
     " "$COMPOSE_FILE"
 }
 
+# update specific service version
+update_service_version() {
+    local service="$1"
+    local version="$2"
+
+    if [ -z "$service" ] || [ -z "$version" ]; then
+        echo "Error: Service name and version number are required."
+        return 1
+    fi
+
+    sed -i.bak -E "
+        /^[[:space:]]+image: .*${service}:v[^:]+$/ {
+            s/(:v)[^:]+$/\1${version}/
+        }
+    " "$COMPOSE_FILE"
+}
+
 # check docker-compose.yaml exists
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "docker-compose.yaml not found, please run install.sh directly"
@@ -102,6 +119,9 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
     update_version "1.2"
+    
+    # update swanlab-server to specific version
+    update_service_version "swanlab-server" "1.2.1"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then

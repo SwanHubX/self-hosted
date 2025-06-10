@@ -274,6 +274,8 @@ services:
     <<: *common
     image: swanlab/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
+    ports:
+      - "9000:9000"
     volumes:
       - ${DATA_PATH}/minio:/data
     environment:
@@ -312,7 +314,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: swanlab/swanlab-server:v1.2
+    image: swanlab/swanlab-server:v1.2.1
     container_name: swanlab-server
     depends_on:
       postgres:
