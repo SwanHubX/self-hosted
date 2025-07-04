@@ -6,19 +6,20 @@
 > 若你的服务器上未安装Docker Compose插件，可以参考[官方地址](https://github.com/docker/compose/)进行下载安装，或者使用我们提供的安装脚本 [scripts/install-docker-compose.sh](../scripts/install-docker-compose.sh)。
 
 ### 在线部署
+
 服务器可以联网时，直接执行 `./install.sh` 脚本即可开始部署。部署成功后会看到下面的 **SwanLab** 标志。
 
 ```bash
 $ ./install.sh
 
 ...
-   _____                    _           _     
-  / ____|                  | |         | |    
- | (_____      ____ _ _ __ | |     __ _| |__  
-  \___ \ \ /\ / / _` | '_ \| |    / _` | '_ \ 
+   _____                    _           _
+  / ____|                  | |         | |
+ | (_____      ____ _ _ __ | |     __ _| |__
+  \___ \ \ /\ / / _` | '_ \| |    / _` | '_ \
   ____) \ V  V / (_| | | | | |___| (_| | |_) |
- |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ 
-                                              
+ |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/
+
  Self-Hosted Docker v1.0 - @SwanLab
 
 🎉 Wow, the installation is complete. Everything is perfect.
@@ -33,6 +34,13 @@ $ ./install.sh
 2. 将 `swanlab_images.tar` 文件上传到目标机器上。（可配合`sftp`工具）
 3. 在目标服务器上运行 `docker load -i swanlab_images.tar` 加载镜像，等待加载成功后可以通过 `docker images` 命令查看镜像列表，将会显示所有镜像。
 4. 然后跟上述在线部署一样执行 `./install.sh` 即可部署安装。
+
+### 端口说明
+
+| 端口号 | 是否可配置 | 用途说明                                                      |
+| ------ | ---------- | ------------------------------------------------------------- |
+| 8000   | 是         | 网关服务端口，可用于接收外部请求，建议在公网环境中设置为 `80` |
+| 9000   | 否         | MinIO 签名端口，用于对象存储访问，端口固定不可修改            |
 
 ### 可配置项
 
@@ -63,13 +71,13 @@ $ ./install.sh -d /data -p 80 -s
 在 `swanlab` 目录下执行 `docker compose ps -a` 可以查看所有容器的运行状态：
 
 ```bash
-$ docker compose ps -a                                                                                                                                                                (base) 
+$ docker compose ps -a                                                                                                                                                                (base)
 NAME                 IMAGE                                                                   COMMAND                  SERVICE          CREATED          STATUS                    PORTS
 swanlab-clickhouse   ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3                      "/entrypoint.sh"         clickhouse       22 minutes ago   Up 22 minutes (healthy)   8123/tcp, 9000/tcp, 9009/tcp
 swanlab-cloud        ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1                     "/docker-entrypoint.…"   swanlab-cloud    22 minutes ago   Up 21 minutes             80/tcp
 swanlab-fluentbit    ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.0                       "/fluent-bit/bin/flu…"   fluent-bit       22 minutes ago   Up 22 minutes             2020/tcp
 swanlab-house        ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1                     "./app"                  swanlab-house    22 minutes ago   Up 21 minutes (healthy)   3000/tcp
-swanlab-logrotate    ccr.ccs.tencentyun.com/self-hosted/logrotate:v1                         "/sbin/tini -- /usr/…"   logrotate        22 minutes ago   Up 22 minutes             
+swanlab-logrotate    ccr.ccs.tencentyun.com/self-hosted/logrotate:v1                         "/sbin/tini -- /usr/…"   logrotate        22 minutes ago   Up 22 minutes
 swanlab-minio        ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z   "/usr/bin/docker-ent…"   minio            22 minutes ago   Up 22 minutes (healthy)   9000/tcp
 swanlab-next         ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1                      "docker-entrypoint.s…"   swanlab-next     22 minutes ago   Up 21 minutes             3000/tcp
 swanlab-postgres     ccr.ccs.tencentyun.com/self-hosted/postgres:16.1                        "docker-entrypoint.s…"   postgres         22 minutes ago   Up 22 minutes (healthy)   5432/tcp
