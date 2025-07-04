@@ -1,10 +1,12 @@
 ## Deployment via Docker
 
 [中文](./README.md)
+
 > First, make sure you have [docker](https://docs.docker.com/engine/install/) installed on your server. If not installed, you can refer to the [documentation](https://docs.docker.com/engine/install/), or use our installation script [scripts/install-docker.sh](../scripts/install-docker.sh).
 > If your server does not have Docker Compose plugin, you can refer to the [documentation](https://github.com/docker/compose/) for downloading and installing. Alternatively, you can use our provided installation script [scripts/install-docker-compose.sh](../scripts/install-docker-compose.sh).
 
 ### Online Deployment
+
 When the server can be connected to the network, simply execute the `./install-dockerhub.sh` script to start deployment. After successful deployment, you will see the **SwanLab** logo below.
 
 ```bash
@@ -27,9 +29,16 @@ $ ./install.sh
 ### Offline Deployment
 
 1. **Download Images on a Networked Machine:** On a machine with internet access and a Docker environment, download the necessary images by running the script located at `scripts/pull-images.sh`. After the script completes, it will generate a file named `swanlab_images.tar` in the current directory. This file contains the compressed archive of all the required images. **Please ensure that the machine used for downloading has Docker properly installed and running.**
-2.  **Transfer the Archive to the Target Machine:** Upload the `swanlab_images.tar` file to your target machine. (You can use tools like `sftp` for this purpose).
-3.  **Load Images on the Target Machine:** On the target server, run the command `docker load -i swanlab_images.tar` to load the images from the archive. After the loading process is complete, you can verify the image list using the `docker images` command. It should display all the images contained in the archive.
-4.  **Install SwanLab:** Proceed with the installation by executing `./install.sh`, following the same steps as the online deployment method.
+2. **Transfer the Archive to the Target Machine:** Upload the `swanlab_images.tar` file to your target machine. (You can use tools like `sftp` for this purpose).
+3. **Load Images on the Target Machine:** On the target server, run the command `docker load -i swanlab_images.tar` to load the images from the archive. After the loading process is complete, you can verify the image list using the `docker images` command. It should display all the images contained in the archive.
+4. **Install SwanLab:** Proceed with the installation by executing `./install.sh`, following the same steps as the online deployment method.
+
+### Port Configuration
+
+| Port | Configurable | Description                                                                                           |
+| ---- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| 8000 | Yes          | Gateway service port. Handles external requests. For public deployments, consider setting it to `80`. |
+| 9000 | No           | MinIO signature port for object storage access. This port is fixed and cannot be changed.             |
 
 ### Configurable Items
 
