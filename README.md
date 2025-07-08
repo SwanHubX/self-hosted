@@ -8,9 +8,12 @@
 
 <h1>Self-Hosted SwanLab</h1>
 
-<!-- [![][dockerhub-shield]][dockerhub-link] -->
+SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署方式
 
 <a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a>
+
+[![][dockerhub-shield]][dockerhub-link]
+
 
 
 中文 / [English](./README_EN.md)
@@ -23,6 +26,7 @@
 - [🚄 快速部署](#-快速部署)
 - [🔌 SDK版本兼容性](#-sdk版本兼容性)
 - [🚀 升级版本](#-升级版本)
+- [📚 资源](#-资源)
 
 <br>
 
