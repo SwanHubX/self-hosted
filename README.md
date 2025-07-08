@@ -10,7 +10,7 @@
 
 <!-- [![][dockerhub-shield]][dockerhub-link] -->
 
-<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 私有化部署文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a>
+<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a>
 
 
 中文 / [English](./README_EN.md)
