@@ -6,7 +6,7 @@
   <img alt="SwanLab" src="readme_files/swanlab-logo-single.svg" width="70" height="70">
 </picture>
 
-<h1>SwanLab</h1>
+<h1>Self-Hosted SwanLab</h1>
 
 <!-- [![][dockerhub-shield]][dockerhub-link] -->
 
