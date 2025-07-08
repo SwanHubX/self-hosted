@@ -35,6 +35,8 @@ $ ./install.sh
 
 ### Port Configuration
 
+If you deploy on a server and want to access and record experiments remotely, make sure to open the following two ports:
+
 | Port | Configurable | Description                                                                                           |
 | ---- | ------------ | ----------------------------------------------------------------------------------------------------- |
 | 8000 | Yes          | Gateway service port. Handles external requests. For public deployments, consider setting it to `80`. |
