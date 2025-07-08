@@ -1,21 +1,34 @@
-<h1 align="center" style="border-bottom: none">
-    <a href="https://swanlab.cn" target="_blank">
-      <img alt="SwanLab" src="./assets/swanlab.svg" width="150" height="150">
-    </a>
-    <br>Self-Hosted SwanLab
-</h1>
-
 <div align="center">
 
-[![][dockerhub-shield]][dockerhub-link]
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="readme_files/swanlab-logo-single-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="readme_files/swanlab-logo-single.svg">
+  <img alt="SwanLab" src="readme_files/swanlab-logo-single.svg" width="70" height="70">
+</picture>
+
+<h1>Self-Hosted SwanLab</h1>
+
+<!-- [![][dockerhub-shield]][dockerhub-link] -->
+
+<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a>
+
+
+中文 / [English](./README_EN.md)
 
 </div>
 
-[English](./README_EN.md)
+## 📖 目录
 
-## 版本更新
+- [🌟 最近更新](#-最近更新)
+- [🚄 快速部署](#-快速部署)
+- [🔌 SDK版本兼容性](#-sdk版本兼容性)
+- [🚀 升级版本](#-升级版本)
 
-### v1.2 (2025.5.30)
+<br>
+
+## 🌟 最近更新
+
+**v1.2 (2025.5.30)**
 - Feature: 上线折线图创建和编辑功能，配置图表功能增加数据源选择功能，支持单张图表显示不同的指标
 - Feature: 支持在实验添加Tag标签
 - Feature: 支持折线图Log Scale；支持分组拖拽；增加swanlab.OpenApi开放接口
@@ -26,12 +39,12 @@
 
 > 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v1.2` 版本
 
-### v1.1 (2025.4.27)
+**v1.1 (2025.4.27)**
 swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
 
+<br>
 
-
-## 快速部署
+## 🚄 快速部署
 
 ### 1. 手动部署
 
@@ -42,13 +55,13 @@ git clone https://github.com/swanhubx/self-hosted.git
 cd self-hosted/docker
 ```
 
-使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
+**方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
 ./install-dockerhub.sh
 ```
 
-中国地区快速部署：
+**方式二：** 中国地区快速部署：
 
 ```bash
 ./install.sh
@@ -56,13 +69,13 @@ cd self-hosted/docker
 
 ### 2. 一键脚本部署
 
-使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
+**方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
 curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
 ```
 
-中国地区快速部署：
+**方式二：** 中国地区快速部署：
 
 ```bash
 curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh && bash install.sh
@@ -70,15 +83,38 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 详细内容参考：[docker/README.md](./docker/README.md)
 
-## 更新版本
+教程文档：[使用Docker进行部署](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+
+
+<br>
+
+## 🚀 升级版本
 
 克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
 
-## 开始使用
+```bash
+cd docker
+bash ./upgrade.sh
+```
 
-请参考：[教程文档](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+<br>
 
+## 🔌 SDK版本兼容性
+
+私有化部署版本与SDK（即[swanlab](https://github.com/SwanHubX/SwanLab) python库）的兼容性如下表：
+
+| 私有化版本   | 支持的 SDK 版本 |
+|-----------|------------------|
+| v1.2    | v0.6.0 ~ v0.6.4           |
+| v1.1    | v0.6.0 ~ v0.6.4           |
 
 
 [dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
 [dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
+
+<br>
+
+## 📚 资源
+- [纯离线环境部署](https://docs.swanlab.cn/guide_cloud/self_host/offline-deployment.html)
+- [腾讯云云应用部署](https://docs.swanlab.cn/guide_cloud/self_host/tencentcloud-app.html)
+- [常见问题](https://docs.swanlab.cn/guide_cloud/self_host/faq.html)

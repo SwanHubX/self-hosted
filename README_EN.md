@@ -54,6 +54,19 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 For more details, refer to: [docker/README.md](./docker/README.md)
 
+## Version Compatibility  
+
+The following table describes the required SwanLab SDK versions for private deployment.  
+
+| Private Version | Supported SDK Versions |
+|----------------|------------------------|
+| v1.2 | v0.6.0 ~ v0.6.4 |
+| v1.1 | v0.6.0 ~ v0.6.4 |
+
+## Updating Versions  
+
+After cloning the repository and syncing the latest code, navigate to the `docker` directory and execute `./upgrade.sh` to upgrade and restart to the latest version.
+
 ## Start Using
 
 Refer to：[Document](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
