@@ -28,6 +28,11 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
+**v1.3 (2025.7.8)**
+- Feature: Sync to the latest public cloud version
+
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v1.3`
+
 **v1.2 (2025.5.30)**
 - Feature: Line chart creation and editing features launched; configure charts with data source selection, supporting multiple metrics in the same chart
 - Feature: Add Tag feature for experiments
@@ -104,6 +109,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
+| v1.3            | v0.6.0 ~ latest        |
 | v1.2            | v0.6.0 ~ v0.6.4        |
 | v1.1            | v0.6.0 ~ v0.6.4        |
 
