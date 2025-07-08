@@ -24,6 +24,8 @@
 - [🔌 SDK版本兼容性](#-sdk版本兼容性)
 - [🚀 升级版本](#-升级版本)
 
+<br>
+
 ## 🌟 最近更新
 
 **v1.2 (2025.5.30)**
@@ -40,11 +42,9 @@
 **v1.1 (2025.4.27)**
 swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
 
-
+<br>
 
 ## 🚄 快速部署
-
-[教程文档](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
 
 ### 1. 手动部署
 
@@ -83,9 +83,16 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 详细内容参考：[docker/README.md](./docker/README.md)
 
+教程文档：[使用Docker进行部署](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+
+
+<br>
+
 ## 🚀 升级版本
 
 克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
+
+<br>
 
 ## 🔌 SDK版本兼容性
 
@@ -99,6 +106,8 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 [dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
 [dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
+
+<br>
 
 ## 📚 资源
 - [纯离线环境部署](https://docs.swanlab.cn/guide_cloud/self_host/offline-deployment.html)
