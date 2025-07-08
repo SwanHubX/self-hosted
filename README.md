@@ -70,6 +70,16 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 详细内容参考：[docker/README.md](./docker/README.md)
 
+## 版本兼容性
+
+以下表格描述了私有化部署时所需的 swanlab sdk 版本。
+
+| 私有化版本   | 支持的 SDK 版本 | 备注                  |
+|-----------|------------------|-------------------|
+| v1.2    | v0.6.0 ~ v0.6.4           |     最新版 SDK 暂不支持     |
+| v1.1    | v0.6.0 ~ v0.6.4           |  停止维护（EOL）|
+
+
 ## 更新版本
 
 克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
