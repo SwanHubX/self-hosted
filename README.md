@@ -92,6 +92,11 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
 
+```bash
+cd docker
+bash ./upgrade.sh
+```
+
 <br>
 
 ## 🔌 SDK版本兼容性
