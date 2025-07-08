@@ -54,7 +54,7 @@ add_new_var() {
     }
     { print }
     ' "$file_path" > "$tmp_file"
-    
+
     # replace  file
     if ! mv "$tmp_file" "$file_path"; then
         echo "replace fail, update docker-compose.yaml locate on ${tmp_file} " >&2
@@ -73,7 +73,7 @@ update_server_command() {
 
 # change version
 update_version() {
-    local version="$1" 
+    local version="$1"
 
     if [ -z "$version" ]; then
         echo "Error: Version number is required."
@@ -118,10 +118,10 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
-    update_version "1.2"
-    
+    update_version "1.3"
+
     # update swanlab-server to specific version
-    update_service_version "swanlab-server" "1.2.1"
+    update_service_version "swanlab-next" "1.2"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
@@ -146,7 +146,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "VERSION=1.2.0"
+      add_new_var "swanlab-server" "environment" "VERSION=1.3.0"
     fi
 
     # add missing minio middleware if needed
