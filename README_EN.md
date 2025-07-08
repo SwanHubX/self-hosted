@@ -58,10 +58,10 @@ For more details, refer to: [docker/README.md](./docker/README.md)
 
 The following table describes the required SwanLab SDK versions for private deployment.  
 
-| Private Version | Supported SDK Versions | Remarks |  
-|----------------|------------------------|---------|  
-| v1.2 | v0.6.0 ~ v0.6.4 | Latest SDK version is not yet supported |  
-| v1.1 | v0.6.0 ~ v0.6.4 | End of Life (EOL) |  
+| Private Version | Supported SDK Versions |
+|----------------|------------------------|
+| v1.2 | v0.6.0 ~ v0.6.4 |
+| v1.1 | v0.6.0 ~ v0.6.4 |
 
 ## Updating Versions  
 
