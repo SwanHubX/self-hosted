@@ -219,6 +219,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    labels:
+      - "traefik.enable=false"
   redis:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15
@@ -230,6 +232,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    labels:
+      - "traefik.enable=false"
   clickhouse:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3
@@ -246,6 +250,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    labels:
+      - "traefik.enable=false"
   logrotate:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/logrotate:v1
@@ -274,6 +280,8 @@ services:
       CLICKHOUSE_PORT: 8123
       CLICKHOUSE_USER: swanlab
       CLICKHOUSE_PASS: ${CLICKHOUSE_PASSWORD}
+    labels:
+      - "traefik.enable=false"
   minio:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
@@ -315,6 +323,8 @@ services:
         mc mb --ignore-existing myminio/swanlab-public
         mc anonymous set public myminio/swanlab-public
       "
+    labels:
+      - "traefik.enable=false"
   # swanlab services
   swanlab-server:
     <<: *common
@@ -334,6 +344,7 @@ services:
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - VERSION=1.3.0
     labels:
+      - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
       - "traefik.http.routers.swanlab-server.middlewares=preprocess@file"
     command: bash -c "npx prisma migrate deploy && node migrate.js && pm2-runtime app.js"
@@ -361,6 +372,7 @@ services:
       - SH_DISTRIBUTED_ENABLE=true
       - SH_REDIS_URL=redis://default@redis:6379
     labels:
+      - "traefik.http.services.swanlab-house.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-house.rule=PathPrefix(\`/api/house\`) || PathPrefix(\`/api/internal\`)"
       - "traefik.http.routers.swanlab-house.middlewares=preprocess@file"
     volumes:
@@ -377,6 +389,8 @@ services:
     depends_on:
       swanlab-server:
         condition: service_healthy
+    labels:
+      - "traefik.enable=false"
   swanlab-next:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.2
@@ -387,6 +401,7 @@ services:
     environment:
       - NEXT_CLOUD_URL=http://swanlab-cloud:80
     labels:
+      - "traefik.http.services.swanlab-next.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-next.rule=PathPrefix(\`/\`)"
 EOF
 
