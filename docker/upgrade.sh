@@ -19,20 +19,41 @@ add_replica_env() {
 
 # 2. 为指定 service 添加 traefik.enable=false
 add_traefik_disable_label() {
-  local service=$1
-  sed -i.bak -E '
-  ' "$COMPOSE_FILE"
-}
+  local service_name="$1"
+  local file_path="$COMPOSE_FILE"
 
+    # mktemp
+    local tmp_file
+    tmp_file=$(mktemp) || {
+        echo "can not make temp file" >&2
+        return 1
+    }
+    awk -v service="$service_name" '
+    BEGIN { in_service = 0 }
+    $0 ~ "^  " service ":$" { in_service = 1; print; next }
+    in_service && /^    image:/ {
+        print
+        print "    labels:"
+        print "      - \"traefik.enable=false\""
+        next
+    }
+    /^  [a-zA-Z-]+:/ && !/^  'service':$/ { in_service = 0 }
+    { print }
+    ' "$file_path" > "$tmp_file"
+
+    # replace  file
+    if ! mv "$tmp_file" "$file_path"; then
+        echo "replace fail, update docker-compose.yaml locate on ${tmp_file} " >&2
+        return 2
+    fi
+}
 
 # 3. 为指定 service 添加 traefik 端口 label
 add_traefik_port_label() {
   local service=$1
   local port=$2
-  sed -i.bak -E '
-  ' "$COMPOSE_FILE"
+  add_new_var "$service" "labels" "\"traefik.http.services.${service}.loadbalancer.server.port=${port}\""
 }
-
 
 # add new variable for containers config
 add_new_var() {
@@ -185,7 +206,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_new_var "minio" "labels" "\"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
     # restart docker-compose
-    # docker compose -f swanlab/docker-compose.yaml up -d
+    docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
 else
     echo "update canceled"
