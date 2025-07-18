@@ -17,37 +17,20 @@ add_replica_env() {
     ' "$COMPOSE_FILE"
 }
 
+# 2. 为指定 service 添加 traefik.enable=false
 add_traefik_disable_label() {
-    local service="$1"
-    sed -i.bak -E "/^[[:space:]]*${service}:/,/^[[:space:]]*[a-zA-Z0-9_-]+:/ {
-      /labels:/ {
-        a\
-          \ \ \ \ - \"traefik.enable=false\"
-        b
-      }
-      /^(  )+[a-zA-Z_]+:/ {
-        i\
-          \ \ \ \ labels:\n        - \"traefik.enable=false\"
-        b
-      }
-    }" "$COMPOSE_FILE"
+  local service=$1
+  sed -i.bak -E '
+  ' "$COMPOSE_FILE"
 }
 
+
+# 3. 为指定 service 添加 traefik 端口 label
 add_traefik_port_label() {
-    local service="$1"
-    local port="$2"
-    sed -i.bak -E "/^[[:space:]]*${service}:/,/^[[:space:]]*[a-zA-Z0-9_-]+:/ {
-      /labels:/ {
-        a\
-          \ \ \ \ - \"traefik.http.services.${service}.loadbalancer.server.port=${port}\"
-        b
-      }
-      /^(  )+[a-zA-Z_]+:/ {
-        i\
-          \ \ \ \ labels:\n        - \"traefik.http.services.${service}.loadbalancer.server.port=${port}\"
-        b
-      }
-    }" "$COMPOSE_FILE"
+  local service=$1
+  local port=$2
+  sed -i.bak -E '
+  ' "$COMPOSE_FILE"
 }
 
 
@@ -171,6 +154,9 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_traefik_disable_label "postgres"
       add_traefik_disable_label "redis"
       add_traefik_disable_label "clickhouse"
+      add_traefik_disable_label "fluent-bit"
+      add_traefik_disable_label "create-buckets"
+      add_traefik_disable_label "swanlab-cloud"
     fi
 
     # update swanlab-server command
@@ -199,7 +185,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_new_var "minio" "labels" "\"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
     # restart docker-compose
-    docker compose -f swanlab/docker-compose.yaml up -d
+    # docker compose -f swanlab/docker-compose.yaml up -d
     echo "finish update"
 else
     echo "update canceled"
