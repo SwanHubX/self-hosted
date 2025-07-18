@@ -14,7 +14,45 @@ add_replica_env() {
             }
         }
     }
-    ' swanlab/docker-compose.yaml
+    ' "$COMPOSE_FILE"
+}
+
+# 2. 为指定 service 添加 traefik.enable=false
+add_traefik_disable_label() {
+  local service_name="$1"
+  local file_path="$COMPOSE_FILE"
+
+    # mktemp
+    local tmp_file
+    tmp_file=$(mktemp) || {
+        echo "can not make temp file" >&2
+        return 1
+    }
+    awk -v service="$service_name" '
+    BEGIN { in_service = 0 }
+    $0 ~ "^  " service ":$" { in_service = 1; print; next }
+    in_service && /^    image:/ {
+        print
+        print "    labels:"
+        print "      - \"traefik.enable=false\""
+        next
+    }
+    /^  [a-zA-Z-]+:/ && !/^  'service':$/ { in_service = 0 }
+    { print }
+    ' "$file_path" > "$tmp_file"
+
+    # replace  file
+    if ! mv "$tmp_file" "$file_path"; then
+        echo "replace fail, update docker-compose.yaml locate on ${tmp_file} " >&2
+        return 2
+    fi
+}
+
+# 3. 为指定 service 添加 traefik 端口 label
+add_traefik_port_label() {
+  local service=$1
+  local port=$2
+  add_new_var "$service" "labels" "\"traefik.http.services.${service}.loadbalancer.server.port=${port}\""
 }
 
 # add new variable for containers config
@@ -126,6 +164,20 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
       add_replica_env
+    fi
+
+    # update traefik port label
+    if ! grep -q "traefik.http.services.swanlab-server.loadbalancer.server.port=3000" "$COMPOSE_FILE"; then
+      add_traefik_port_label "swanlab-server" 3000
+      add_traefik_port_label "swanlab-house" 3000
+      add_traefik_port_label "swanlab-next" 3000
+
+      add_traefik_disable_label "postgres"
+      add_traefik_disable_label "redis"
+      add_traefik_disable_label "clickhouse"
+      add_traefik_disable_label "fluent-bit"
+      add_traefik_disable_label "create-buckets"
+      add_traefik_disable_label "swanlab-cloud"
     fi
 
     # update swanlab-server command
