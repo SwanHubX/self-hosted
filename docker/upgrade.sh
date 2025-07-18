@@ -14,8 +14,42 @@ add_replica_env() {
             }
         }
     }
-    ' swanlab/docker-compose.yaml
+    ' "$COMPOSE_FILE"
 }
+
+add_traefik_disable_label() {
+    local service="$1"
+    sed -i.bak -E "/^[[:space:]]*${service}:/,/^[[:space:]]*[a-zA-Z0-9_-]+:/ {
+      /labels:/ {
+        a\
+          \ \ \ \ - \"traefik.enable=false\"
+        b
+      }
+      /^(  )+[a-zA-Z_]+:/ {
+        i\
+          \ \ \ \ labels:\n        - \"traefik.enable=false\"
+        b
+      }
+    }" "$COMPOSE_FILE"
+}
+
+add_traefik_port_label() {
+    local service="$1"
+    local port="$2"
+    sed -i.bak -E "/^[[:space:]]*${service}:/,/^[[:space:]]*[a-zA-Z0-9_-]+:/ {
+      /labels:/ {
+        a\
+          \ \ \ \ - \"traefik.http.services.${service}.loadbalancer.server.port=${port}\"
+        b
+      }
+      /^(  )+[a-zA-Z_]+:/ {
+        i\
+          \ \ \ \ labels:\n        - \"traefik.http.services.${service}.loadbalancer.server.port=${port}\"
+        b
+      }
+    }" "$COMPOSE_FILE"
+}
+
 
 # add new variable for containers config
 add_new_var() {
@@ -126,6 +160,17 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
       add_replica_env
+    fi
+
+    # update traefik port label
+    if ! grep -q "traefik.http.services.swanlab-server.loadbalancer.server.port=3000" "$COMPOSE_FILE"; then
+      add_traefik_port_label "swanlab-server" 3000
+      add_traefik_port_label "swanlab-house" 3000
+      add_traefik_port_label "swanlab-next" 3000
+
+      add_traefik_disable_label "postgres"
+      add_traefik_disable_label "redis"
+      add_traefik_disable_label "clickhouse"
     fi
 
     # update swanlab-server command
