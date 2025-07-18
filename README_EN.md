@@ -10,7 +10,7 @@
 
 Self-hosted SwanLab service supports Docker, cloud app, and fully offline deployment
 
-<a href="https://swanlab.cn">🔥 Online SwanLab</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 Documentation</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">Report Issues</a>
+<a href="https://swanlab.cn">🔥 Online SwanLab</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 Documentation</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">Report Issues</a> · <a href="https://hub.docker.com/search?q=swanlab">DockerHub</a>
 
 [中文](./README.md) / English
 
@@ -121,4 +121,5 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 ## 📚 Resources
 - [Offline deployment for pure offline environments](https://docs.swanlab.cn/guide_cloud/self_host/offline-deployment.html)
 - [Deployment on Tencent Cloud App](https://docs.swanlab.cn/guide_cloud/self_host/tencentcloud-app.html)
+- [Deployment on Alibaba Cloud Compute Nest](https://docs.swanlab.cn/guide_cloud/self_host/alibabacloud-computenest.html)
 - [FAQ](https://docs.swanlab.cn/guide_cloud/self_host/faq.html)
