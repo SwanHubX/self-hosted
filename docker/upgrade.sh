@@ -206,8 +206,29 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_new_var "minio" "labels" "\"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
     # restart docker-compose
-    docker compose -f swanlab/docker-compose.yaml up -d
-    echo "finish update"
+    docker compose -f "$COMPOSE_FILE" up -d
+
+    echo "Waiting for services to start..."
+    sleep 3
+
+    SERVICES=("swanlab-server" "swanlab-house" "swanlab-cloud" "swanlab-next")
+
+    NOT_RUNNING_SERVICES=()
+
+    for SERVICE in "${SERVICES[@]}"; do
+        STATUS=$(docker compose -f "$COMPOSE_FILE" ps --filter "status=running" --services | grep "^$SERVICE$" || true)
+        if [ -z "$STATUS" ]; then
+            NOT_RUNNING_SERVICES+=("$SERVICE")
+        fi
+    done
+
+    if [ ${#NOT_RUNNING_SERVICES[@]} -ne 0 ]; then
+    echo -e "\033[0;31m❌ Deployment failed: some services did not start successfully:\033[0m"
+    printf '%s\n' "${NOT_RUNNING_SERVICES[@]}"
+    exit 1
+    else
+        echo "finish update"
+    fi
 else
     echo "update canceled"
     exit 1

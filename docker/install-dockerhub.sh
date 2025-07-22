@@ -404,16 +404,36 @@ EOF
 # start docker services
 docker compose up -d
 
-echo -e "${green}${bold}"
-echo "   _____                    _           _     ";
-echo "  / ____|                  | |         | |    ";
-echo " | (_____      ____ _ _ __ | |     __ _| |__  ";
-echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
-echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
-echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
-echo "                                              ";
-echo " Self-Hosted Docker v1.3 - @SwanLab"
-echo -e "${reset}"
-echo "🎉 Wow, the installation is complete. Everything is perfect."
-echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
-echo ""
+echo "Waiting for services to start..."
+sleep 3
+
+SERVICES=("swanlab-server" "swanlab-house" "swanlab-cloud" "swanlab-next")
+
+NOT_RUNNING_SERVICES=()
+
+for SERVICE in "${SERVICES[@]}"; do
+  STATUS=$(docker compose ps --filter "status=running" --services | grep "^$SERVICE$" || true)
+  if [ -z "$STATUS" ]; then
+    NOT_RUNNING_SERVICES+=("$SERVICE")
+  fi
+done
+
+if [ ${#NOT_RUNNING_SERVICES[@]} -ne 0 ]; then
+  echo -e "\033[0;31m❌ Deployment failed: some services did not start successfully:\033[0m"
+  printf '%s\n' "${NOT_RUNNING_SERVICES[@]}"
+  exit 1
+else
+  echo -e "${green}${bold}"
+  echo "   _____                    _           _     ";
+  echo "  / ____|                  | |         | |    ";
+  echo " | (_____      ____ _ _ __ | |     __ _| |__  ";
+  echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
+  echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
+  echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
+  echo "                                              ";
+  echo " Self-Hosted Docker v1.3 - @SwanLab"
+  echo -e "${reset}"
+  echo "🎉 Wow, the installation is complete. Everything is perfect."
+  echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
+  echo ""
+fi
