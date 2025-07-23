@@ -387,6 +387,12 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:80"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
   swanlab-next:
     <<: *common
     image: swanlab/swanlab-next:v1.2
@@ -399,41 +405,70 @@ services:
     labels:
       - "traefik.http.services.swanlab-next.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-next.rule=PathPrefix(\`/\`)"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 EOF
 
 # start docker services
 docker compose up -d
 
-echo "Waiting for services to start..."
-sleep 3
+echo "⏳ Waiting for services to become healthy..."
 
-SERVICES=("swanlab-server" "swanlab-house" "swanlab-cloud" "swanlab-next")
+SERVICES=(
+  swanlab-server
+  swanlab-house
+  swanlab-cloud
+  swanlab-next
+  swanlab-postgres
+  swanlab-clickhouse
+  swanlab-redis
+  swanlab-minio
+  swanlab-traefik
+  )
 
-NOT_RUNNING_SERVICES=()
+NOT_HEALTHY_SERVICES=()
 
+# Wait for each service to become healthy (timeout = 30s)
 for SERVICE in "${SERVICES[@]}"; do
-  STATUS=$(docker compose ps --filter "status=running" --services | grep "^$SERVICE$" || true)
-  if [ -z "$STATUS" ]; then
-    NOT_RUNNING_SERVICES+=("$SERVICE")
+  echo -n "🔍 Checking $SERVICE..."
+  for i in {1..30}; do
+    STATUS=$(docker inspect --format='{{.State.Health.Status}}' $SERVICE 2>/dev/null || echo "starting")
+    if [ "$STATUS" == "healthy" ]; then
+      echo " ✅ healthy"
+      break
+    fi
+    sleep 1
+  done
+  if [ "$STATUS" != "healthy" ]; then
+    echo " ❌ $SERVICE is not healthy after timeout."
+    NOT_HEALTHY_SERVICES+=("$SERVICE")
   fi
 done
 
-if [ ${#NOT_RUNNING_SERVICES[@]} -ne 0 ]; then
-  echo -e "\033[0;31m❌ Deployment failed: some services did not start successfully:\033[0m"
-  printf '%s\n' "${NOT_RUNNING_SERVICES[@]}"
+if [ ${#NOT_HEALTHY_SERVICES[@]} -ne 0 ]; then
+  echo -e "\n\033[0;31m❌ Oops! The following services failed to start properly:\033[0m"
+  for SERVICE in "${NOT_HEALTHY_SERVICES[@]}"; do
+    echo "   - $SERVICE"
+  done
+  echo -e "\n🔧 You can check logs using: docker logs <service-name>"
+  echo "💡 Or inspect health details: docker inspect <service-name>"
   exit 1
 else
-  echo -e "${green}${bold}"
-  echo "   _____                    _           _     ";
-  echo "  / ____|                  | |         | |    ";
-  echo " | (_____      ____ _ _ __ | |     __ _| |__  ";
-  echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
-  echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
-  echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
-  echo "                                              ";
-  echo " Self-Hosted Docker v1.3 - @SwanLab"
-  echo -e "${reset}"
-  echo "🎉 Wow, the installation is complete. Everything is perfect."
-  echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
-  echo ""
-fi
+    echo -e "${green}${bold}"
+    echo "   _____                    _           _     ";
+    echo "  / ____|                  | |         | |    ";
+    echo " | (_____      ____ _ _ __ | |     __ _| |__  ";
+    echo "  \___ \ \ /\ / / _\` | '_ \| |    / _\` | '_ \ ";
+    echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
+    echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
+    echo "                                              ";
+    echo " Self-Hosted Docker v1.3 - @SwanLab"
+    echo -e "${reset}"
+    echo "🎉 Wow, the installation is complete. Everything is perfect."
+    echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
+    echo ""
+  fi

@@ -17,9 +17,21 @@ add_replica_env() {
     ' "$COMPOSE_FILE"
 }
 
-# 2. 为指定 service 添加 traefik.enable=false
-add_traefik_disable_label() {
+# 为指定 service 添加 traefik 端口 label
+add_traefik_port_label() {
+  local service=$1
+  local port=$2
+  add_new_var "$service" "labels" "- \"traefik.http.services.${service}.loadbalancer.server.port=${port}\""
+}
+
+# 向某一个服务下新增一个子块加一条值，例如向clickhouse添加
+# labels:
+#    - "traefik.enable=false"
+add_new_key_with_value() {
+  local service=$1
   local service_name="$1"
+  local label_key="$2"
+  local new_val="$3"
   local file_path="$COMPOSE_FILE"
 
     # mktemp
@@ -28,13 +40,16 @@ add_traefik_disable_label() {
         echo "can not make temp file" >&2
         return 1
     }
-    awk -v service="$service_name" '
-    BEGIN { in_service = 0 }
+    awk -v service="$service_name" \
+        -v label="$label_key" \
+        -v val="$new_val" '
+    BEGIN { in_service = 0; indent = "" }
     $0 ~ "^  " service ":$" { in_service = 1; print; next }
-    in_service && /^    image:/ {
+    in_service && $0 ~ "^    image:" {
         print
-        print "    labels:"
-        print "      - \"traefik.enable=false\""
+        match($0, /^ */); indent = substr($0, 1, RLENGTH)
+        print indent label ":"
+        print indent "  " val
         next
     }
     /^  [a-zA-Z-]+:/ && !/^  'service':$/ { in_service = 0 }
@@ -48,11 +63,16 @@ add_traefik_disable_label() {
     fi
 }
 
-# 3. 为指定 service 添加 traefik 端口 label
-add_traefik_port_label() {
+# 为服务添加健康检查
+add_health_check(){
   local service=$1
   local port=$2
-  add_new_var "$service" "labels" "\"traefik.http.services.${service}.loadbalancer.server.port=${port}\""
+
+  add_new_key_with_value "$service" "healthcheck" "start_period: 5s"
+  add_new_var "$service" "healthcheck" "retries: 5"
+  add_new_var "$service" "healthcheck" "timeout: 3s"
+  add_new_var "$service" "healthcheck" "interval: 5s"
+  add_new_var "$service" "healthcheck" "test: [\"CMD\", \"wget\", \"--spider\", \"-q\", \"0.0.0.0:${port}\"]"
 }
 
 # add new variable for containers config
@@ -86,7 +106,7 @@ add_new_var() {
     /^  [a-zA-Z-]+:/ && !( $0 ~ "^  " service ":$") { in_service=0 }
     in_service && $0 ~ "^    " label ":" {
         print $0
-        print "      - " val
+        print "      " val
         inserted=1
         next
     }
@@ -148,11 +168,10 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
-# confirm information
+# # confirm information
 read -p "Updating the container version will restart docker compose. Do you agree? [y/N] " confirm
 
-
-# check y or Y
+# # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
@@ -172,12 +191,13 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_traefik_port_label "swanlab-house" 3000
       add_traefik_port_label "swanlab-next" 3000
 
-      add_traefik_disable_label "postgres"
-      add_traefik_disable_label "redis"
-      add_traefik_disable_label "clickhouse"
-      add_traefik_disable_label "fluent-bit"
-      add_traefik_disable_label "create-buckets"
-      add_traefik_disable_label "swanlab-cloud"
+      #  为指定 service 添加 traefik.enable=false
+      add_new_key_with_value "postgres" "labels" "- \"traefik.enable=false\""
+      add_new_key_with_value "redis" "labels" "- \"traefik.enable=false\""
+      add_new_key_with_value "clickhouse" "labels" "- \"traefik.enable=false\""
+      add_new_key_with_value "fluent-bit" "labels" "- \"traefik.enable=false\""
+      add_new_key_with_value "create-buckets" "labels" "- \"traefik.enable=false\""
+      add_new_key_with_value "swanlab-cloud" "labels" "- \"traefik.enable=false\""
     fi
 
     # update swanlab-server command
@@ -191,19 +211,27 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # add new variable for containers config, it only can be added once and can not be update existing
     # add swanlab-house environment variable
     if ! grep -q "SH_DISTRIBUTED_ENABLE" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-house" "environment" "SH_DISTRIBUTED_ENABLE=true"
+      add_new_var "swanlab-house" "environment" "- SH_DISTRIBUTED_ENABLE=true"
     fi
     if ! grep -q "SH_REDIS_URL" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-house" "environment" "SH_REDIS_URL=redis://default@redis:6379"
+      add_new_var "swanlab-house" "environment" "- SH_REDIS_URL=redis://default@redis:6379"
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "VERSION=1.3.0"
+      add_new_var "swanlab-server" "environment" "- VERSION=1.3.0"
     fi
 
     # add missing minio middleware if needed
     if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
-      add_new_var "minio" "labels" "\"traefik.http.routers.minio2.middlewares=minio-host@file\""
+      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.middlewares=minio-host@file\""
+    fi
+    # add healthcheck for swanlab-cloud
+    if ! grep -A 10 'swanlab-cloud:' "$COMPOSE_FILE" | grep -q '^    healthcheck:'; then
+      add_health_check "swanlab-cloud" 80
+    fi
+    # add healthcheck for swanlab-next
+    if ! grep -A 10 'swanlab-next:' "$COMPOSE_FILE" | grep -q '^    healthcheck:'; then
+      add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
     docker compose -f "$COMPOSE_FILE" up -d
