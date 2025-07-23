@@ -247,7 +247,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       for SERVICE in "${NOT_HEALTHY_SERVICES[@]}"; do
         echo "   - $SERVICE"
       done
-      echo -e "\n🔧 You can check logs using: docker logs <service-name> --tail 20 -f"
+      echo -e "\n🔧 You can check logs using: docker logs <service-name>"
       echo "💡 Or inspect health details: docker inspect <service-name>"
       exit 1
     else
