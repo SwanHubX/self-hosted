@@ -221,6 +221,12 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:80"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
   swanlab-next:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.2
@@ -233,3 +239,9 @@ services:
     labels:
       - "traefik.http.services.swanlab-next.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-next.rule=PathPrefix(`/`)"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
