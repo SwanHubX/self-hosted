@@ -10,9 +10,9 @@ images=(
   "ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.0"
   "ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z"
   "ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z"
-  "ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.2"
-  "ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1.2"
-  "ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1.2"
+  "ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1.3"
+  "ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1.3"
+  "ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1.3"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1.2"
 )
 
