@@ -177,9 +177,6 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # update all containers version
     update_version "2.0"
 
-    # update swanlab-server to specific version
-    update_service_version "swanlab-next" "2.0"
-
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
       add_replica_env
