@@ -234,7 +234,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
-    # docker compose -f "$COMPOSE_FILE" up -d
+    docker compose -f "$COMPOSE_FILE" up -d
 
     echo "⏳ Waiting for services to become healthy..."
 
