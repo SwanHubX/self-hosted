@@ -470,7 +470,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-    echo " Self-Hosted Docker v1.3 - @SwanLab"
+    echo " Self-Hosted Docker v2.0 - @SwanLab"
     echo -e "${reset}"
     echo "🎉 Wow, the installation is complete. Everything is perfect."
     echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"

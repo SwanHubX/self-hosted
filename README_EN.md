@@ -28,10 +28,13 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
+**v2.0 (2025.9.1)**
+- Update permission system
+
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.0`
+
 **v1.3 (2025.7.8)**
 - Feature: Sync to the latest public cloud version
-
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v1.3`
 
 **v1.2 (2025.5.30)**
 - Feature: Line chart creation and editing features launched; configure charts with data source selection, supporting multiple metrics in the same chart
@@ -41,8 +44,6 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - Optimize: Fix data loss when uploading large amounts of metrics
 - Optimize: Greatly improve the performance when uploading metrics
 - BugFix: Fix the issue where some experiments cannot be automatically closed
-
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v1.2`
 
 **v1.1 (2025.4.27)**
 SwanLab images have been updated to v1.1. Users who are deploying for the first time can directly run `install.sh` to access v1.1, and users of the original v1 version can directly run `docker/upgrade.sh` to update and restart the `docker-compose.yaml`.
@@ -109,6 +110,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
+| v2.0            | v0.6.0 ~ latest        |
 | v1.3            | v0.6.0 ~ latest        |
 | v1.2            | v0.6.0 ~ v0.6.4        |
 | v1.1            | v0.6.0 ~ v0.6.4        |

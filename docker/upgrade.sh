@@ -175,10 +175,10 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
-    update_version "1.3"
+    update_version "2.0"
 
     # update swanlab-server to specific version
-    update_service_version "swanlab-next" "1.2"
+    update_service_version "swanlab-next" "2.0"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
@@ -234,7 +234,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
-    docker compose -f "$COMPOSE_FILE" up -d
+    # docker compose -f "$COMPOSE_FILE" up -d
 
     echo "⏳ Waiting for services to become healthy..."
 
