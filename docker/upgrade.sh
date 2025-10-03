@@ -132,6 +132,7 @@ update_server_command() {
 # change version
 update_version() {
     local version="$1"
+    local full_version="${version}.0"
 
     if [ -z "$version" ]; then
         echo "Error: Version number is required."
@@ -143,6 +144,16 @@ update_version() {
             s/(:v)[^:]+$/\1${version}/
         }
     " "$COMPOSE_FILE"
+
+    sed -i.bak -E '
+    /^[[:space:]]*swanlab-server:/,/^$/ {
+        /^[[:space:]]*environment:/,/^$/ {
+            /^[[:space:]]*- VERSION=[0-9]+[.][0-9]+[.][0-9]+/ {
+                s/(VERSION=)[0-9]+[.][0-9]+[.][0-9]+/\1'"${full_version}"'/
+            }
+        }
+    }
+    ' "$COMPOSE_FILE"
 }
 
 # update specific service version
@@ -175,7 +186,7 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
-    update_version "2.0"
+    update_version "2.1"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
@@ -215,7 +226,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "- VERSION=1.3.0"
+      add_new_var "swanlab-server" "environment" "- VERSION=2.1.0"
     fi
 
     # add missing minio middleware if needed
