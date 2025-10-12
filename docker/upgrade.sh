@@ -146,13 +146,13 @@ update_version() {
     " "$COMPOSE_FILE"
 
     sed -i.bak -E '
-    /^[[:space:]]*swanlab-server:/,/^$/ {
-        /^[[:space:]]*environment:/,/^$/ {
-            /^[[:space:]]*- VERSION=[0-9]+[.][0-9]+[.][0-9]+/ {
-                s/(VERSION=)[0-9]+[.][0-9]+[.][0-9]+/\1'"${full_version}"'/
-            }
-        }
-    }
+      /^[[:space:]]*swanlab-server:/,/^$/ {
+          /^[[:space:]]*environment:/,/^$/ {
+              /^[[:space:]]*- VERSION=[0-9]+[.][0-9]+[.][0-9]+/ {
+                  s/(VERSION=)[0-9]+[.][0-9]+[.][0-9]+/\1'"${full_version}"'/
+              }
+          }
+      }
     ' "$COMPOSE_FILE"
 }
 
@@ -160,6 +160,7 @@ update_version() {
 update_service_version() {
     local service="$1"
     local version="$2"
+    local full_version="${version}.0"
 
     if [ -z "$service" ] || [ -z "$version" ]; then
         echo "Error: Service name and version number are required."
@@ -171,6 +172,18 @@ update_service_version() {
             s/(:v)[^:]+$/\1${version}/
         }
     " "$COMPOSE_FILE"
+
+    if [ "$service" = "swanlab-server" ]; then
+      sed -i.bak -E "
+          /^[[:space:]]*swanlab-server:/,/^$/ {
+              /^[[:space:]]*environment:/,/^$/ {
+                  /^[[:space:]]*- VERSION=[0-9]+([.][0-9]+)*[.][0-9]+/ {
+                      s/(VERSION=)[0-9]+([.][0-9]+)*[.][0-9]+/\\1${full_version}/
+                  }
+              }
+          }
+      " "$COMPOSE_FILE"
+    fi
 }
 
 # check docker-compose.yaml exists
