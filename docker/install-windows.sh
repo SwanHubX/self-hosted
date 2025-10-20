@@ -53,21 +53,25 @@ fi
 
 echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 
+# check if docker compose is installed
+if ! docker compose version &>/dev/null;  then
+    echo "😰 ${yellow}Docker Compose may not install ${reset}"
+
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        echo "😁 ${bold}You can use the install script (${green}install-docker-compose.sh${reset})${bold} located in the scripts directory.${reset}"
+    else
+        echo "🧐 ${red}macOS/Windows detected: Docker Compose is included in Docker Desktop. Please install Docker Desktop${reset}"
+        exit 1
+    fi
+fi
+
+
 # check if docker daemon is running
 echo "🧐 Checking if Docker is running..."
-docker_not_running=0
+docker_not_running=1
 
-# Different platform methods
-if [[ "$(uname -s)" == "Linux" ]]; then
-    # Linux use systemctl to check
-    if ! systemctl is-active docker >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
-else
-    # macOs/Windows use docker info to check
-    if ! docker info >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
+if docker info >/dev/null 2>&1; then
+    docker_not_running=0
 fi
 
 if [[ $docker_not_running -eq 1 ]]; then
@@ -173,6 +177,8 @@ volumes:
     name: swanlab-house
   fluent-bit:
     name: fluent-bit
+  clickhouse-data:
+    name: clickhouse-data
 
 x-common: &common
   networks:
@@ -187,7 +193,7 @@ services:
   # Gateway
   traefik:
     <<: *common
-    image: swanlab/traefik:v3.0
+    image: ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0
     container_name: swanlab-traefik
     ports:
       - "${EXPOSE_PORT}:80"
@@ -201,15 +207,13 @@ services:
   # Databases
   postgres:
     <<: *common
-    image: swanlab/postgres:16.1
+    image: ccr.ccs.tencentyun.com/self-hosted/postgres:16.1
     container_name: swanlab-postgres
     environment:
       TZ: UTC
       POSTGRES_USER: swanlab
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: app
-    labels:
-      - "traefik.enable=false"
     volumes:
       - ${DATA_PATH}/postgres/data:/var/lib/postgresql/data
     healthcheck:
@@ -217,40 +221,44 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    labels:
+      - "traefik.enable=false"
   redis:
     <<: *common
-    image: swanlab/redis-stack-server:7.2.0-v15
+    image: ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15
     container_name: swanlab-redis
     volumes:
       - ${DATA_PATH}/redis:/data
-    labels:
-      - "traefik.enable=false"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
+    labels:
+      - "traefik.enable=false"
   clickhouse:
     <<: *common
-    image: swanlab/clickhouse:24.3
+    image: ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3
     container_name: swanlab-clickhouse
     volumes:
-      - ${DATA_PATH}/clickhouse:/var/lib/clickhouse/
+      - clickhouse-data:/var/lib/clickhouse
     environment:
       TZ: UTC
       CLICKHOUSE_USER: swanlab
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-    labels:
-      - "traefik.enable=false"
+      CHOWN_HOME: "yes"
+      CHOWN_HOME_OPTS: "-R 101"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 3
+    labels:
+      - "traefik.enable=false"
   logrotate:
     <<: *common
-    image: swanlab/logrotate:v1
+    image: ccr.ccs.tencentyun.com/self-hosted/logrotate:v1
     container_name: swanlab-logrotate
     volumes:
       - swanlab-house:/data
@@ -264,7 +272,7 @@ services:
       - "traefik.enable=false"
   fluent-bit:
     <<: *common
-    image: swanlab/fluent-bit:3.0
+    image: ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.0
     container_name: swanlab-fluentbit
     command: ["fluent-bit/bin/fluent-bit", "-c", "/conf/fluent-bit.conf"]
     volumes:
@@ -280,7 +288,7 @@ services:
       - "traefik.enable=false"
   minio:
     <<: *common
-    image: swanlab/minio:RELEASE.2025-02-28T09-55-16Z
+    image: ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
     ports:
       - "9000:9000"
@@ -309,8 +317,6 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    labels:
-      - "traefik.enable=false"
     entrypoint: >
       /bin/sh -c "
         mc alias set myminio http://minio:9000 swanlab ${MINIO_ROOT_PASSWORD}
@@ -321,10 +327,12 @@ services:
         mc mb --ignore-existing myminio/swanlab-public
         mc anonymous set public myminio/swanlab-public
       "
+    labels:
+      - "traefik.enable=false"
   # swanlab services
   swanlab-server:
     <<: *common
-    image: swanlab/swanlab-server:v2.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.1
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -351,7 +359,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: swanlab/swanlab-house:v2.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.1
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -380,7 +388,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: swanlab/swanlab-cloud:v2.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.1
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -395,7 +403,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: swanlab/swanlab-next:v2.1
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.1
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -470,5 +478,15 @@ else
     echo -e "${reset}"
     echo "🎉 Wow, the installation is complete. Everything is perfect."
     echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
+    echo -e "\n${bold}💾 Volume mount points:${reset}"
+    
+    # 获取 clickhouse-data 卷的宿主机路径
+    CLICKHOUSE_VOLUME_PATH=$(docker volume inspect clickhouse-data --format '{{.Mountpoint}}' 2>/dev/null)
+    
+    if [ -n "$CLICKHOUSE_VOLUME_PATH" ]; then
+        echo -e "   - ${green}clickhouse-data location in wsl${reset}: $CLICKHOUSE_VOLUME_PATH"
+    else
+        echo -e "   - ${red}clickhouse-data${reset}: Volume not found or Docker not running"
+    fi
     echo ""
   fi

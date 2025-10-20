@@ -25,6 +25,7 @@ $ ./install.sh
 🎉 Wow, the installation is complete. Everything is perfect.
 🥰 Congratulations, self-hosted SwanLab can be accessed using {IP}:8000
 ```
+> Self-hosted supports Linux systems, If deploying on Windows system, use the `install-windows.sh` script after completing Docker Desktop installation. In this system, clickhouse data is managed by Docker's volume management system. For backup purposes, you can query the volume path using the` docker volume inspect clickhouse-data` command in WSL.
 
 ### Offline Deployment
 

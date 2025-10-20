@@ -177,8 +177,6 @@ volumes:
     name: swanlab-house
   fluent-bit:
     name: fluent-bit
-  clickhouse-data:
-    name: clickhouse-data
 
 x-common: &common
   networks:
@@ -241,14 +239,12 @@ services:
     image: ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3
     container_name: swanlab-clickhouse
     volumes:
-      - clickhouse-data:/var/lib/clickhouse
+      - ${DATA_PATH}/clickhouse:/var/lib/clickhouse/
     environment:
       TZ: UTC
       CLICKHOUSE_USER: swanlab
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-      CHOWN_HOME: "yes"
-      CHOWN_HOME_OPTS: "-R 101"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
       interval: 10s

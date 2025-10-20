@@ -27,6 +27,7 @@ $ ./install.sh
 ```
 
 > `install.sh` 使用国内镜像源，如果是需要使用 [DockerHub](https://hub.docker.com/explore) 源，则可以使用 `install-dockerhub.sh` 脚本部署
+> 私有化部署支持Linux系统，如若使用Windows系统进行部署，在安装完成Docker Desktop后在Windows环境下使用 `install-windows.sh` 脚本进行安装。Windows下clickhouse的数据被Docker的卷管理系统进行托管，如需备份，可在wsl下使用`docker volume inspect clickhouse-data` 命令来进行查询。
 
 ### 离线部署
 
