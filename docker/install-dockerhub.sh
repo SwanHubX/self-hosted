@@ -173,6 +173,8 @@ volumes:
     name: swanlab-house
   fluent-bit:
     name: fluent-bit
+  clickhouse-data:
+    name: clickhouse-data
 
 x-common: &common
   networks:
@@ -235,12 +237,14 @@ services:
     image: swanlab/clickhouse:24.3
     container_name: swanlab-clickhouse
     volumes:
-      - ${DATA_PATH}/clickhouse:/var/lib/clickhouse/
+      - clickhouse-data:/var/lib/clickhouse
     environment:
       TZ: UTC
       CLICKHOUSE_USER: swanlab
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CHOWN_HOME: "yes"
+      CHOWN_HOME_OPTS: "-R 101"
     labels:
       - "traefik.enable=false"
     healthcheck:
