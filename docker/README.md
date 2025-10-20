@@ -27,6 +27,7 @@ $ ./install.sh
 ```
 
 > `install.sh` 使用国内镜像源，如果是需要使用 [DockerHub](https://hub.docker.com/explore) 源，则可以使用 `install-dockerhub.sh` 脚本部署
+> 若使用 Windows 系统进行部署，在安装完成 Docker Desktop 后使用 `install-windows.sh` 脚本进行安装。
 
 ### 离线部署
 
