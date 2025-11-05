@@ -20,7 +20,7 @@ $ ./install.sh
   ____) \ V  V / (_| | | | | |___| (_| | |_) |
  |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/
 
- Self-Hosted Docker v2.1 - @SwanLab
+ Self-Hosted Docker v2.2 - @SwanLab
 
 🎉 Wow, the installation is complete. Everything is perfect.
 🥰 Congratulations, self-hosted SwanLab can be accessed using {IP}:8000
