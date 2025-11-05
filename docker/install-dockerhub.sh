@@ -264,7 +264,7 @@ services:
       - "traefik.enable=false"
   fluent-bit:
     <<: *common
-    image: swanlab/fluent-bit:3.0
+    image: swanlab/fluent-bit:3.1
     container_name: swanlab-fluentbit
     command: ["fluent-bit/bin/fluent-bit", "-c", "/conf/fluent-bit.conf"]
     volumes:
