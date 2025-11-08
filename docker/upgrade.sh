@@ -168,8 +168,8 @@ update_service_version() {
     fi
 
     sed -i.bak -E "
-        /^[[:space:]]+image: .*${service}:v[^:]+$/ {
-            s/(:v)[^:]+$/\1${version}/
+        /^[[:space:]]+image: .*${service}:[^:]+$/ {
+            s/(:v?)[^:]+$/\1${version}/
         }
     " "$COMPOSE_FILE"
 
@@ -199,7 +199,8 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
-    update_version "2.1"
+    update_version "2.2"
+    update_service_version "fluent-bit" "3.1"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
@@ -239,7 +240,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "- VERSION=2.1.0"
+      add_new_var "swanlab-server" "environment" "- VERSION=2.2.0"
     fi
 
     # add missing minio middleware if needed
