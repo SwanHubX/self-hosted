@@ -199,7 +199,7 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # update all containers version
-    update_version "2.2"
+    update_version "2.3"
     update_service_version "fluent-bit" "3.1"
 
     # update DATABASE_URL_REPLICA
