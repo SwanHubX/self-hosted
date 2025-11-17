@@ -28,6 +28,9 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
+**v2.3 (2025.11.17)**
+- Support experiment grouping
+
 **v2.2 (2025.11.6)**
 - Support custom x-axis for line charts
 
@@ -117,6 +120,8 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
+| v2.3            | v0.6.0 ~ latest        |
+| v2.2            | v0.6.0 ~ latest        |
 | v2.1            | v0.6.0 ~ latest        |
 | v2.0            | v0.6.0 ~ latest        |
 | v1.3            | v0.6.0 ~ latest        |
