@@ -214,7 +214,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3.1
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:

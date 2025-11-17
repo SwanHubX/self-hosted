@@ -380,7 +380,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: swanlab/swanlab-cloud:v2.1
+    image: swanlab/swanlab-cloud:v2.3.1
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
