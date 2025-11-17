@@ -12,7 +12,7 @@ images=(
   "ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.3"
-  "ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3"
+  "ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3.1"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.3"
 )
 
