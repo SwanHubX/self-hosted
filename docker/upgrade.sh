@@ -240,7 +240,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "- VERSION=2.2.0"
+      add_new_var "swanlab-server" "environment" "- VERSION=2.3.0"
     fi
 
     # add missing minio middleware if needed
