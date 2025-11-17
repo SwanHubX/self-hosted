@@ -332,7 +332,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.2
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -346,7 +346,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=2.2.0
+      - VERSION=2.3.0
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
@@ -359,7 +359,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.2
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.3
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -388,7 +388,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.2
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -403,7 +403,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.2
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.3
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -474,7 +474,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-    echo " Self-Hosted Docker v2.2 - @SwanLab"
+    echo " Self-Hosted Docker v2.3 - @SwanLab"
     echo -e "${reset}"
     echo "🎉 Wow, the installation is complete. Everything is perfect."
     echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
