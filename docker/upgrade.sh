@@ -250,13 +250,13 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # delete old minio labels if exists
     if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
-      sed -i '' '/traefik\.http\.routers\.minio2\.rule=PathPrefix(`\/swanlab-private`)/d' "$COMPOSE_FILE"
+      sed -i '' '\|traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)|d' "$COMPOSE_FILE"
     fi
     # delete minio ports mapping
     # 删除以 'ports:' 开头，并且下一行包含 9000:9000 的两行
     sed -i '' '/^[[:space:]]*ports:[[:space:]]*$/{
-      N
-      /"9000:9000"/d
+    N
+    /"9000:9000"/d
     }' "$COMPOSE_FILE"
     # add healthcheck for swanlab-cloud
     if ! grep -A 10 'swanlab-cloud:' "$COMPOSE_FILE" | grep -q '^    healthcheck:'; then
