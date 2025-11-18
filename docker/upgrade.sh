@@ -132,7 +132,6 @@ update_server_command() {
 # change version
 update_version() {
     local version="$1"
-    local full_version="${version}.0"
 
     if [ -z "$version" ]; then
         echo "Error: Version number is required."
@@ -144,23 +143,12 @@ update_version() {
             s/(:v)[^:]+$/\1${version}/
         }
     " "$COMPOSE_FILE"
-
-    sed -i.bak -E '
-      /^[[:space:]]*swanlab-server:/,/^$/ {
-          /^[[:space:]]*environment:/,/^$/ {
-              /^[[:space:]]*- VERSION=[0-9]+[.][0-9]+[.][0-9]+/ {
-                  s/(VERSION=)[0-9]+[.][0-9]+[.][0-9]+/\1'"${full_version}"'/
-              }
-          }
-      }
-    ' "$COMPOSE_FILE"
 }
 
 # update specific service version
 update_service_version() {
     local service="$1"
     local version="$2"
-    local full_version="${version}.0"
 
     if [ -z "$service" ] || [ -z "$version" ]; then
         echo "Error: Service name and version number are required."
@@ -172,18 +160,20 @@ update_service_version() {
             s/(:v?)[^:]+$/\1${version}/
         }
     " "$COMPOSE_FILE"
+}
 
-    if [ "$service" = "swanlab-server" ]; then
-      sed -i.bak -E "
-          /^[[:space:]]*swanlab-server:/,/^$/ {
-              /^[[:space:]]*environment:/,/^$/ {
-                  /^[[:space:]]*- VERSION=[0-9]+([.][0-9]+)*[.][0-9]+/ {
-                      s/(VERSION=)[0-9]+([.][0-9]+)*[.][0-9]+/\\1${full_version}/
-                  }
-              }
-          }
-      " "$COMPOSE_FILE"
-    fi
+# update self-hosted version
+update_self_hosted_version() {
+    local full_version="$1"
+    sed -i.bak -E "
+        /^[[:space:]]*swanlab-server:/,/^$/ {
+            /^[[:space:]]*environment:/,/^$/ {
+                /^[[:space:]]*- VERSION=[0-9]+([.][0-9]+)*[.][0-9]+/ {
+                    s/(VERSION=)[0-9]+([.][0-9]+)*[.][0-9]+/\\1${full_version}/
+                }
+            }
+        }
+    " "$COMPOSE_FILE"
 }
 
 # check docker-compose.yaml exists
@@ -198,10 +188,14 @@ read -p "Updating the container version will restart docker compose. Do you agre
 # # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
+    # 更新设置页面版本号
+    update_self_hosted_version "2.3.1"
     # update all containers version
     update_version "2.3"
     update_service_version "swanlab-cloud" "2.3.1"
+    update_service_version "swanlab-server" "2.3.1"
     update_service_version "fluent-bit" "3.1"
+    update_service_version "traefik" "3.1"
 
     # update DATABASE_URL_REPLICA
     if ! grep -q "DATABASE_URL_REPLICA" "$COMPOSE_FILE"; then
@@ -241,13 +235,29 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "- VERSION=2.3.0"
+      add_new_var "swanlab-server" "environment" "- VERSION=2.3.1"
     fi
 
     # add missing minio middleware if needed
+    if ! grep -q 'traefik.http.routers.minio3.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      add_new_var "minio" "labels" "- \"traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)\""
+    fi
     if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
       add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
+    if ! grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private/exports`)' "$COMPOSE_FILE"; then
+      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)\""
+    fi
+    # delete old minio labels if exists
+    if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      sed -i '' '/traefik\.http\.routers\.minio2\.rule=PathPrefix(`\/swanlab-private`)/d' "$COMPOSE_FILE"
+    fi
+    # delete minio ports mapping
+    # 删除以 'ports:' 开头，并且下一行包含 9000:9000 的两行
+    sed -i '' '/^[[:space:]]*ports:[[:space:]]*$/{
+      N
+      /"9000:9000"/d
+    }' "$COMPOSE_FILE"
     # add healthcheck for swanlab-cloud
     if ! grep -A 10 'swanlab-cloud:' "$COMPOSE_FILE" | grep -q '^    healthcheck:'; then
       add_health_check "swanlab-cloud" 80
@@ -257,7 +267,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
-    docker compose -f "$COMPOSE_FILE" up -d
+    # docker compose -f "$COMPOSE_FILE" up -d
 
     echo "⏳ Waiting for services to become healthy..."
 

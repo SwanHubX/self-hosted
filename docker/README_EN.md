@@ -41,7 +41,6 @@ If you deploy on a server and want to access and record experiments remotely, ma
 | Port | Configurable | Description                                                                                           |
 | ---- | ------------ | ----------------------------------------------------------------------------------------------------- |
 | 8000 | Yes          | Gateway service port. Handles external requests. For public deployments, consider setting it to `80`. |
-| 9000 | No           | MinIO signature port for object storage access. This port is fixed and cannot be changed.             |
 
 ### Configurable Items
 
