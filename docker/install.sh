@@ -191,7 +191,7 @@ services:
   # Gateway
   traefik:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0
+    image: ccr.ccs.tencentyun.com/self-hosted/traefik:v3.1
     container_name: swanlab-traefik
     ports:
       - "${EXPOSE_PORT}:80"
@@ -286,8 +286,6 @@ services:
     <<: *common
     image: ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
-    ports:
-      - "9000:9000"
     volumes:
       - ${DATA_PATH}/minio:/data
     environment:
@@ -297,8 +295,9 @@ services:
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.http.routers.minio1.rule=PathPrefix(\`/swanlab-public\`)"
       - "traefik.http.routers.minio1.middlewares=minio-host@file"
-      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)"
+      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)"
       - "traefik.http.routers.minio2.middlewares=minio-host@file"
+      - "traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)"
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -328,7 +327,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3.1
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -342,7 +341,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=2.3.0
+      - VERSION=2.3.1
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"

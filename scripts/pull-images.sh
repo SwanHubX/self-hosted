@@ -2,7 +2,7 @@
 
 # 定义要下载的镜像列表
 images=(
-  "ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0"
+  "ccr.ccs.tencentyun.com/self-hosted/traefik:v3.1"
   "ccr.ccs.tencentyun.com/self-hosted/postgres:16.1"
   "ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15"
   "ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3"
@@ -10,7 +10,7 @@ images=(
   "ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.1"
   "ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z"
   "ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z"
-  "ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3"
+  "ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v2.3.1"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.3"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.3.1"
   "ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.3"
