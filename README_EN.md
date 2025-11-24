@@ -28,6 +28,10 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
+**v2.3.1 (2025.11.24)**
+- No longer need to open port 9000 for minio
+- Data points in line charts carry timestamp information
+
 **v2.3 (2025.11.17)**
 - Support experiment grouping
 
@@ -120,6 +124,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
+| v2.3.1          | v0.6.0 ~ latest        |
 | v2.3            | v0.6.0 ~ latest        |
 | v2.2            | v0.6.0 ~ latest        |
 | v2.1            | v0.6.0 ~ latest        |

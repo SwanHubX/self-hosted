@@ -191,9 +191,9 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # 更新设置页面版本号
     update_self_hosted_version "2.3.1"
     # update all containers version
-    update_version "2.3"
-    update_service_version "swanlab-cloud" "2.3.1"
-    update_service_version "swanlab-server" "2.3.1"
+    update_version "2.3.1"
+    update_service_version "swanlab-cloud" "2.3.2"
+    update_service_version "swanlab-next" "2.3"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
