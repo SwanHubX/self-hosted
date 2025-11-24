@@ -189,11 +189,9 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # 更新设置页面版本号
-    update_self_hosted_version "2.3.1"
+    update_self_hosted_version "2.4"
     # update all containers version
-    update_version "2.3.1"
-    update_service_version "swanlab-cloud" "2.3.2"
-    update_service_version "swanlab-next" "2.3"
+    update_version "2.4"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
@@ -235,7 +233,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
     # add swanlab-server environment variable
     if ! grep -q "VERSION" "$COMPOSE_FILE"; then
-      add_new_var "swanlab-server" "environment" "- VERSION=2.3.1"
+      add_new_var "swanlab-server" "environment" "- VERSION=2.4.0"
     fi
 
     # add missing minio middleware if needed
