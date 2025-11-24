@@ -28,6 +28,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.3.1`
+
 **v2.3.1 (2025.11.24)**
 - No longer need to open port 9000 for minio
 - Data points in line charts carry timestamp information
@@ -44,8 +46,6 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v2.0 (2025.9.1)**
 - Update permission system
-
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.0`
 
 **v1.3 (2025.7.8)**
 - Feature: Sync to the latest public cloud version
