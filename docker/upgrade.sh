@@ -237,18 +237,18 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
 
     # add missing minio middleware if needed
-    if ! grep -q 'traefik.http.routers.minio3.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
-      add_new_var "minio" "labels" "- \"traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)\""
-    fi
     if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
       add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
-    if ! grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private/exports`)' "$COMPOSE_FILE"; then
-      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)\""
+    if ! grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)\""
     fi
     # delete old minio labels if exists
-    if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
-      sed -i.bak '\|traefik\.http\.routers\.minio2\.rule=PathPrefix(`/swanlab-private`)|d' "$COMPOSE_FILE"
+    if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private/exports`)' "$COMPOSE_FILE"; then
+      sed -i.bak '\|traefik\.http\.routers\.minio2\.rule=PathPrefix(`/swanlab-private/exports`)|d' "$COMPOSE_FILE"
+    fi
+    if grep -q 'traefik.http.routers.minio3.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      sed -i.bak '\|traefik\.http\.routers\.minio3\.rule=PathPrefix(`/swanlab-private`)|d' "$COMPOSE_FILE"
     fi
     # delete minio ports mapping
     # 删除以 'ports:' 开头，并且下一行包含 9000:9000 的两行
@@ -265,7 +265,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
-    docker compose -f "$COMPOSE_FILE" up -d
+    # docker compose -f "$COMPOSE_FILE" up -d
 
     echo "⏳ Waiting for services to become healthy..."
 
