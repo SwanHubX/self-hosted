@@ -189,11 +189,11 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # 更新设置页面版本号
-    update_self_hosted_version "2.5.1"
+    update_self_hosted_version "2.6.2"
     # update all containers version
-    update_version "2.5.0"
-    update_service_version "swanlab-server" "2.5.1"
-    update_service_version "swanlab-house" "2.5.1"
+    update_version "2.6.0"
+    update_service_version "swanlab-server" "2.6.2"
+    update_service_version "swanlab-house" "2.6.0"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
