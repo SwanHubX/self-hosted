@@ -350,7 +350,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: swanlab/swanlab-house:v2.6.0
+    image: swanlab/swanlab-house:v2.6.2
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -379,7 +379,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: swanlab/swanlab-cloud:v2.6.0
+    image: swanlab/swanlab-cloud:v2.6.2
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -394,7 +394,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: swanlab/swanlab-next:v2.6.0
+    image: swanlab/swanlab-next:v2.6.2
     container_name: swanlab-next
     depends_on:
       swanlab-server:

@@ -354,7 +354,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.6.0
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v2.6.2
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -383,7 +383,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.6.0
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v2.6.2
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -398,7 +398,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.6.0
+    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v2.6.2
     container_name: swanlab-next
     depends_on:
       swanlab-server:
