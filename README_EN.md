@@ -31,8 +31,7 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 > 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.6.2`
 
 **v2.6.2 (2025.12.19)**
-- swanlab-server updated to v2.6.2
-- swanlab-house, swanlab-next, swanlab-cloud updated to v2.6.0
+- Fix known issues, sync cloud service updates, support swanlab sdk v0.7.4
 
 **v2.5.1 (2025.12.10)**
 - Allow replacing minio with other S3 protocol compatible object storage services
@@ -134,7 +133,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
-| v2.6.0 and above | v0.7.4 ~ latest        |
+| v2.6.2 | v0.7.4 ~ latest        |
 | v2.5.1          | v0.6.0 ~ v0.7.3        |
 | v2.5.0          | v0.6.0 ~ v0.7.3        |
 | v2.4            | v0.6.0 ~ v0.7.3        |
