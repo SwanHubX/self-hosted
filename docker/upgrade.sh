@@ -189,9 +189,9 @@ read -p "Updating the container version will restart docker compose. Do you agre
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # 更新设置页面版本号
-    update_self_hosted_version "2.5.0"
+    update_self_hosted_version "2.6.2"
     # update all containers version
-    update_version "2.5.0"
+    update_version "2.6.2"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
@@ -237,18 +237,18 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     fi
 
     # add missing minio middleware if needed
-    if ! grep -q 'traefik.http.routers.minio3.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
-      add_new_var "minio" "labels" "- \"traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)\""
-    fi
     if ! grep -q "traefik.http.routers.minio2.middlewares=minio-host@file" "$COMPOSE_FILE"; then
       add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.middlewares=minio-host@file\""
     fi
-    if ! grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private/exports`)' "$COMPOSE_FILE"; then
-      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)\""
+    if ! grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      add_new_var "minio" "labels" "- \"traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)\""
     fi
     # delete old minio labels if exists
-    if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
-      sed -i.bak '\|traefik\.http\.routers\.minio2\.rule=PathPrefix(`/swanlab-private`)|d' "$COMPOSE_FILE"
+    if grep -q 'traefik.http.routers.minio2.rule=PathPrefix(`/swanlab-private/exports`)' "$COMPOSE_FILE"; then
+      sed -i.bak '\|traefik\.http\.routers\.minio2\.rule=PathPrefix(`/swanlab-private/exports`)|d' "$COMPOSE_FILE"
+    fi
+    if grep -q 'traefik.http.routers.minio3.rule=PathPrefix(`/swanlab-private`)' "$COMPOSE_FILE"; then
+      sed -i.bak '\|traefik\.http\.routers\.minio3\.rule=PathPrefix(`/swanlab-private`)|d' "$COMPOSE_FILE"
     fi
     # delete minio ports mapping
     # 删除以 'ports:' 开头，并且下一行包含 9000:9000 的两行
