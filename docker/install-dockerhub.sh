@@ -323,7 +323,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: swanlab/swanlab-server:v2.6.2
+    image: swanlab/swanlab-server:v2.6.3
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -350,7 +350,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: swanlab/swanlab-house:v2.6.2
+    image: swanlab/swanlab-house:v2.6.3
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -379,7 +379,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: swanlab/swanlab-cloud:v2.6.2
+    image: swanlab/swanlab-cloud:v2.6.3
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -394,7 +394,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: swanlab/swanlab-next:v2.6.2
+    image: swanlab/swanlab-next:v2.6.3
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -465,7 +465,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-    echo " Self-Hosted Docker v2.6.2 - @SwanLab"
+    echo " Self-Hosted Docker v2.6.3 - @SwanLab"
     echo -e "${reset}"
     echo "🎉 Wow, the installation is complete. Everything is perfect."
     echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
