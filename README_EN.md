@@ -30,8 +30,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 > 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.6.3`
 
-**v2.6.3 (2026.01.07)**
-- Add heartbeat detection to prevent long-inactive experiments from being automatically terminated
+**v2.6.3 (2026.01.19)**
+- Add heartbeat detection, optimize the rendering performance of charts
 
 **v2.6.2 (2025.12.19)**
 - Fix known issues, sync cloud service updates, support swanlab sdk v0.7.4
