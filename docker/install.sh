@@ -471,7 +471,54 @@ else
     echo "                                              ";
     echo " Self-Hosted Docker v2.6.3 - @SwanLab"
     echo -e "${reset}"
-    echo "🎉 Wow, the installation is complete. Everything is perfect."
-    echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
-    echo ""
+    print_access_urls() {
+      local port="${EXPOSE_PORT}"
+      
+      echo "🎉 Wow, the installation is complete. Everything is perfect."
+      echo "🥰 You can access self-hosted SwanLab via:"
+      echo ""
+
+      # 1. Local
+      echo "   > Local:    http://localhost:${port}"
+      echo "               http://127.0.0.1:${port}"
+
+      # 2. Network (LAN)
+      local lan_ip=""
+      local os_type="$(uname -s)"
+      
+      if [[ "$os_type" == "Linux" ]]; then
+          if command -v ip >/dev/null 2>&1; then
+              lan_ip=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
+          fi
+          if [ -z "$lan_ip" ] && command -v hostname >/dev/null 2>&1; then
+              lan_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+          fi
+      elif [[ "$os_type" == "Darwin" ]]; then
+           # Mac/BSD detection
+           lan_ip=$(ifconfig | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -n 1)
+           lan_ip=${lan_ip#addr:}
+      elif [[ "$os_type" == *"MINGW"* ]] || [[ "$os_type" == *"CYGWIN"* ]] || [[ "$os_type" == *"MSYS"* ]]; then
+           # Windows detection using ipconfig
+           # Look for "IPv4 Address ... : 192.168.1.5" or "IPv4 ... : 192.168.1.5"
+           lan_ip=$(ipconfig | grep "IPv4" | awk -F': ' '{print $2}' | head -n 1)
+           lan_ip=$(echo "$lan_ip" | tr -d '\r')
+      fi
+      
+      if [ -n "$lan_ip" ]; then
+          echo "   > Network:  http://${lan_ip}:${port}"
+      fi
+
+      # 3. Internet (WAN) - Optional with timeout
+      local wan_ip=""
+      if command -v curl >/dev/null 2>&1; then
+          wan_ip=$(curl -s --max-time 2 ifconfig.me)
+      fi
+      
+      if [ -n "$wan_ip" ]; then
+          echo -e "   > Internet: http://${wan_ip}:${port} (requires port forwarding/firewall open)"
+      fi
+      echo ""
+    }
+
+    print_access_urls
   fi
