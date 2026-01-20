@@ -500,8 +500,7 @@ else
       elif [[ "$os_type" == *"MINGW"* ]] || [[ "$os_type" == *"CYGWIN"* ]] || [[ "$os_type" == *"MSYS"* ]]; then
            # Windows detection using ipconfig
            # Look for "IPv4 Address ... : 192.168.1.5" or "IPv4 ... : 192.168.1.5"
-           lan_ip=$(ipconfig | grep "IPv4" | awk -F': ' '{print $2}' | head -n 1)
-           lan_ip=$(echo "$lan_ip" | tr -d '\r')
+           lan_ip=$(ipconfig | grep "IPv4" | head -n 1 | awk -F ':' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*\r?$//')
       fi
       
       if [ -n "$lan_ip" ]; then
@@ -515,7 +514,7 @@ else
       fi
       
       if [ -n "$wan_ip" ]; then
-          echo -e "   > Internet: http://${wan_ip}:${port} (requires port forwarding/firewall open)"
+           printf "   > Internet: http://%s:%s (requires port forwarding/firewall open)\n" "$wan_ip" "$port"
       fi
       echo ""
     }
