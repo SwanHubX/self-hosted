@@ -185,6 +185,26 @@ fi
 # # confirm information
 read -p "Updating the container version will restart docker compose. Do you agree? [y/N] " confirm
 
+# Detect and use appropriate docker compose commands
+detect_and_run_docker_compose() {
+    local compose_cmd=""
+    
+    # check docker compose 
+    if docker compose version &>/dev/null; then
+        compose_cmd="docker compose"
+    # check docker-compose
+    elif command -v docker-compose &>/dev/null; then
+        compose_cmd="docker-compose"
+    else
+        echo "😰 ${red}Neither 'docker compose' nor 'docker-compose' found.${reset}" >&2
+        echo "💡 ${bold}Please install Docker Compose plugin or standalone docker-compose.${reset}" >&2
+        exit 1
+    fi
+    
+    echo "🚀 Starting Docker services with: $compose_cmd up -d"
+    $compose_cmd -f "$COMPOSE_FILE" up -d
+}
+
 # # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
@@ -265,7 +285,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
       add_health_check "swanlab-next" 3000
     fi
     # restart docker-compose
-    docker compose -f "$COMPOSE_FILE" up -d
+    detect_and_run_docker_compose
 
     echo "⏳ Waiting for services to become healthy..."
 
