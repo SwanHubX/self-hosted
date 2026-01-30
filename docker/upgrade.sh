@@ -201,7 +201,7 @@ detect_and_run_docker_compose() {
         exit 1
     fi
     
-    echo "🚀 Starting Docker services with: $compose_cmd up -d"
+    echo "🚀 Starting Docker services with: $compose_cmd -f \"$COMPOSE_FILE\" up -d"
     $compose_cmd -f "$COMPOSE_FILE" up -d
 }
 
