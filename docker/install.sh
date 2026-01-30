@@ -418,22 +418,22 @@ EOF
 
 # Detect and use appropriate docker compose commands
 detect_and_run_docker_compose() {
-    local compose_cmd=""
+    local -a compose_cmd=()
     
     # check docker compose 
     if docker compose version &>/dev/null; then
-        compose_cmd="docker compose"
+        compose_cmd=(docker compose)
     # check docker-compose
     elif command -v docker-compose &>/dev/null; then
-        compose_cmd="docker-compose"
+        compose_cmd=(docker-compose)
     else
         echo "😰 ${red}Neither 'docker compose' nor 'docker-compose' found.${reset}" >&2
         echo "💡 ${bold}Please install Docker Compose plugin or standalone docker-compose.${reset}" >&2
         exit 1
     fi
     
-    echo "🚀 Starting Docker services with: $compose_cmd up -d"
-    $compose_cmd up -d
+    echo "🚀 Starting Docker services with: ${compose_cmd[*]} up -d"
+    "${compose_cmd[@]}" up -d
 }
 
 # start docker services
