@@ -196,8 +196,8 @@ detect_and_run_docker_compose() {
     elif command -v docker-compose &>/dev/null; then
         compose_cmd=(docker-compose)
     else
-        echo "😰 ${red}Neither 'docker compose' nor 'docker-compose' found.${reset}" >&2
-        echo "💡 ${bold}Please install Docker Compose plugin or standalone docker-compose.${reset}" >&2
+        echo "😰 Neither 'docker compose' nor 'docker-compose' found." >&2
+        echo "💡 Please install Docker Compose plugin or standalone docker-compose." >&2
         exit 1
     fi
     
