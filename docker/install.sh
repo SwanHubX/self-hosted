@@ -295,9 +295,8 @@ services:
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.http.routers.minio1.rule=PathPrefix(\`/swanlab-public\`)"
       - "traefik.http.routers.minio1.middlewares=minio-host@file"
-      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)"
+      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)"
       - "traefik.http.routers.minio2.middlewares=minio-host@file"
-      - "traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)"
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -419,8 +418,8 @@ EOF
 # Detect and use appropriate docker compose commands
 detect_and_run_docker_compose() {
     local -a compose_cmd=()
-    
-    # check docker compose 
+
+    # check docker compose
     if docker compose version &>/dev/null; then
         compose_cmd=(docker compose)
     # check docker-compose
@@ -431,7 +430,7 @@ detect_and_run_docker_compose() {
         echo "💡 ${bold}Please install Docker Compose plugin or standalone docker-compose.${reset}" >&2
         exit 1
     fi
-    
+
     echo "🚀 Starting Docker services with: ${compose_cmd[*]} up -d"
     "${compose_cmd[@]}" up -d
 }
@@ -493,7 +492,7 @@ else
     echo -e "${reset}"
     print_access_urls() {
       local port="${EXPOSE_PORT}"
-      
+
       echo "🎉 Wow, the installation is complete. Everything is perfect."
       echo "🥰 You can access self-hosted SwanLab via:"
       echo ""
@@ -505,7 +504,7 @@ else
       # 2. Network (LAN)
       local lan_ip=""
       local os_type="$(uname -s)"
-      
+
       if [[ "$os_type" == "Linux" ]]; then
           if command -v ip >/dev/null 2>&1; then
               lan_ip=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
@@ -522,7 +521,7 @@ else
            # Look for "IPv4 Address ... : 192.168.1.5" or "IPv4 ... : 192.168.1.5"
            lan_ip=$(ipconfig | grep "IPv4" | head -n 1 | awk -F ':' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*\r?$//')
       fi
-      
+
       if [ -n "$lan_ip" ]; then
           echo "   > Network:  http://${lan_ip}:${port}"
       fi
@@ -532,7 +531,7 @@ else
       if command -v curl >/dev/null 2>&1; then
           wan_ip=$(curl -s --max-time 2 ifconfig.me)
       fi
-      
+
       if [ -n "$wan_ip" ]; then
            printf "   > Internet: http://%s:%s (requires port forwarding/firewall open)\n" "$wan_ip" "$port"
       fi

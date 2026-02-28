@@ -291,9 +291,8 @@ services:
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
       - "traefik.http.routers.minio1.rule=PathPrefix(\`/swanlab-public\`)"
       - "traefik.http.routers.minio1.middlewares=minio-host@file"
-      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private/exports\`)"
+      - "traefik.http.routers.minio2.rule=PathPrefix(\`/swanlab-private\`)"
       - "traefik.http.routers.minio2.middlewares=minio-host@file"
-      - "traefik.http.routers.minio3.rule=PathPrefix(\`/swanlab-private\`)"
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -415,8 +414,8 @@ EOF
 # Detect and use appropriate docker compose commands
 detect_and_run_docker_compose() {
     local -a compose_cmd=()
-    
-    # check docker compose 
+
+    # check docker compose
     if docker compose version &>/dev/null; then
         compose_cmd=(docker compose)
     # check docker-compose
@@ -427,7 +426,7 @@ detect_and_run_docker_compose() {
         echo "💡 ${bold}Please install Docker Compose plugin or standalone docker-compose.${reset}" >&2
         exit 1
     fi
-    
+
     echo "🚀 Starting Docker services with: ${compose_cmd[*]} up -d"
     "${compose_cmd[@]}" up -d
 }
