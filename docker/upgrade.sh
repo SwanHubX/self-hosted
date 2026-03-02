@@ -188,8 +188,8 @@ read -p "Updating the container version will restart docker compose. Do you agre
 # Detect and use appropriate docker compose commands
 detect_and_run_docker_compose() {
     local -a compose_cmd=()
-    
-    # check docker compose 
+
+    # check docker compose
     if docker compose version &>/dev/null; then
         compose_cmd=(docker compose)
     # check docker-compose
@@ -200,7 +200,7 @@ detect_and_run_docker_compose() {
         echo "💡 Please install Docker Compose plugin or standalone docker-compose." >&2
         exit 1
     fi
-    
+
     echo "🚀 Starting Docker services with: ${compose_cmd[*]} -f \"$COMPOSE_FILE\" up -d"
     "${compose_cmd[@]}" -f "$COMPOSE_FILE" up -d
 }
@@ -212,6 +212,7 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     update_self_hosted_version "2.7.0"
     # update all containers version
     update_version "2.7.0"
+    update_service_version "swanlab-server" "2.7.0-internal"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
