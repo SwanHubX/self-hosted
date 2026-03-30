@@ -57,18 +57,21 @@ echo "🤩 ${bold}Docker is installed, so let's get started.${reset}"
 echo "🧐 Checking if Docker is running..."
 docker_not_running=0
 
-# Different platform methods
-if [[ "$(uname -s)" == "Linux" ]]; then
-    # Linux use systemctl to check
-    if ! systemctl is-active docker >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
-else
-    # macOs/Windows use docker info to check
-    if ! docker info >/dev/null 2>&1; then
-        docker_not_running=1
-    fi
+# Use docker info to check - this respects DOCKER_HOST (works for both rootful and rootless)
+if ! docker info >/dev/null 2>&1; then
+    docker_not_running=1
 fi
+
+# Detect rootless Docker: DOCKER_HOST is set to a user socket, or the user socket exists
+is_rootless_docker() {
+    if [[ -n "$DOCKER_HOST" && "$DOCKER_HOST" == "unix:///run/user/"* ]]; then
+        return 0
+    fi
+    if [[ -S "/run/user/$(id -u)/docker.sock" ]]; then
+        return 0
+    fi
+    return 1
+}
 
 if [[ $docker_not_running -eq 1 ]]; then
     echo "😰 ${red}Docker daemon is not running.${reset}"
@@ -76,16 +79,23 @@ if [[ $docker_not_running -eq 1 ]]; then
         # Linux systems provide options for automatic startup
         read -p "😁 ${bold}Would you like to start Docker now? (y/n): " START_DOCKER
         if [[ "$START_DOCKER" =~ ^[Yy]$ ]]; then
-            if ! systemctl start docker; then
-                echo "❌ ${red}Failed to start Docker. You may need to run with sudo.${reset}"
-                exit 1
-            fi
             echo "🚀 Starting Docker service..."
+            if is_rootless_docker; then
+                if ! systemctl --user start docker; then
+                    echo "❌ ${red}Failed to start rootless Docker daemon.${reset}"
+                    exit 1
+                fi
+            else
+                if ! systemctl start docker; then
+                    echo "❌ ${red}Failed to start Docker. You may need to run with sudo.${reset}"
+                    exit 1
+                fi
+            fi
             # waiting Docker startup
             max_attempts=5
             attempt=1
             while [ $attempt -le $max_attempts ]; do
-                if systemctl is-active --quiet docker; then
+                if docker info >/dev/null 2>&1; then
                     echo "✅ ${green}Docker started successfully!${reset}"
                     break
                 fi
@@ -94,7 +104,7 @@ if [[ $docker_not_running -eq 1 ]]; then
             done
 
             # final check
-            if ! systemctl is-active --quiet docker; then
+            if ! docker info >/dev/null 2>&1; then
                 echo "❌ ${red}Docker failed to start after $max_attempts second attempts${reset}"
                 exit 1
             fi
@@ -110,6 +120,16 @@ if [[ $docker_not_running -eq 1 ]]; then
         echo "3. Rerun this installation script${reset}"
         exit 1
     fi
+fi
+
+# Determine Docker socket path for volume mounts
+# Priority: explicit DOCKER_HOST > rootless user socket > default rootful socket
+if [[ -n "$DOCKER_HOST" && "$DOCKER_HOST" == unix://* ]]; then
+    DOCKER_SOCKET="${DOCKER_HOST#unix://}"
+elif [[ -S "/run/user/$(id -u)/docker.sock" ]]; then
+    DOCKER_SOCKET="/run/user/$(id -u)/docker.sock"
+else
+    DOCKER_SOCKET="/var/run/docker.sock"
 fi
 
 mkdir -p swanlab && cd swanlab
@@ -192,7 +212,7 @@ services:
     ports:
       - "${EXPOSE_PORT}:80"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCKET}:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8080/ping"]
       interval: 10s
