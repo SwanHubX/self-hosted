@@ -336,7 +336,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=2.7.1
+      - VERSION=2.7.3
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
