@@ -209,9 +209,9 @@ detect_and_run_docker_compose() {
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
     # 更新设置页面版本号
-    update_self_hosted_version "2.7.1"
+    update_self_hosted_version "2.7.3"
     # update all containers version
-    update_version "2.7.1"
+    update_version "2.7.3"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
