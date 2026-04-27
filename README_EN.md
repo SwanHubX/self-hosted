@@ -28,7 +28,10 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.7.3`
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.7.4`
+
+**v2.7.4 (2026.04.27)**
+- Release project favorites and fix some known issues
 
 **v2.7.3 (2026.04.08)**
 - Support experiment favorites, baseline experiments, and file saving features
@@ -145,6 +148,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version |
 |------------------|-----------------------|
+| v2.7.4          | v0.7.4 ~ latest        |
 | v2.7.3          | v0.7.4 ~ latest        |
 | v2.7.1          | v0.7.4 ~ latest        |
 | v2.7.0          | v0.7.4 ~ latest        |
