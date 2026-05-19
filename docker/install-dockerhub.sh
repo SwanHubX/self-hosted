@@ -105,15 +105,16 @@ fi
 
 resolve_docker_socket_path() {
     local docker_host="${DOCKER_HOST:-}"
+    local rootless_socket="/run/user/$(id -u)/docker.sock"
 
-    if [ -z "$docker_host" ] && [[ "$(uname -s)" == "Linux" ]]; then
+    if [ -z "$docker_host" ]; then
         docker_host=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
     fi
 
     if [[ "$docker_host" == unix://* ]]; then
         DOCKER_SOCKET_PATH="${docker_host#unix://}"
-    elif [[ "$(uname -s)" == "Linux" && -S "/run/user/$(id -u)/docker.sock" && ! -S "/var/run/docker.sock" ]]; then
-        DOCKER_SOCKET_PATH="/run/user/$(id -u)/docker.sock"
+    elif [[ -S "$rootless_socket" ]]; then
+        DOCKER_SOCKET_PATH="$rootless_socket"
     else
         DOCKER_SOCKET_PATH="/var/run/docker.sock"
     fi
