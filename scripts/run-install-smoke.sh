@@ -40,7 +40,7 @@ trap cleanup EXIT
 
 bash -n "${INSTALL_SCRIPT}"
 
-if ! docker info >/dev/null 2>&1; then
+if ! docker info >/dev/null 2>&1 && [ -z "${DOCKER_HOST:-}" ] && [ "$(id -u)" -eq 0 ]; then
   nohup dockerd --host=unix:///var/run/docker.sock >/tmp/dockerd.log 2>&1 &
 fi
 
