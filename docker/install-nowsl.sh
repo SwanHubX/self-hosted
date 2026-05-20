@@ -19,7 +19,7 @@ EXPOSE_PORT=8000
 # shell flag: -s, if -s is added, no manual input is required
 SKIP_INPUT=0
 
-while getopts ":d:p:" opt; do
+while getopts ":d:p:s" opt; do
   case ${opt} in
     d )
       DATA_PATH="$OPTARG"
@@ -116,6 +116,31 @@ if [[ $docker_not_running -eq 1 ]]; then
     fi
 fi
 
+resolve_docker_socket_path() {
+    local docker_host="${DOCKER_HOST:-}"
+    local rootless_socket="/run/user/$(id -u)/docker.sock"
+
+    if [ -z "$docker_host" ]; then
+        docker_host=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
+    fi
+
+    if [[ "$docker_host" == unix://* ]]; then
+        DOCKER_SOCKET_PATH="${docker_host#unix://}"
+    elif [[ -S "$rootless_socket" ]]; then
+        DOCKER_SOCKET_PATH="$rootless_socket"
+    else
+        DOCKER_SOCKET_PATH="/var/run/docker.sock"
+    fi
+
+    if [ ! -S "$DOCKER_SOCKET_PATH" ]; then
+        echo "⚠️ ${yellow}Docker socket not found at ${DOCKER_SOCKET_PATH}. Traefik may fail to access Docker events.${reset}"
+    else
+        echo "🐳 Using Docker socket: ${green}${DOCKER_SOCKET_PATH}${reset}"
+    fi
+}
+
+resolve_docker_socket_path
+
 mkdir -p swanlab && cd swanlab
 
 # Select whether to use this configuration
@@ -198,7 +223,7 @@ services:
     ports:
       - "${EXPOSE_PORT}:80"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8080/ping"]
       interval: 10s
