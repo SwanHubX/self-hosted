@@ -1,0 +1,109 @@
+name: Install scripts tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "docker/install.sh"
+      - "docker/install-dockerhub.sh"
+      - "scripts/run-install-smoke.sh"
+      - ".github/workflows/install-smoke.yml"
+
+jobs:
+  ubuntu-rootful:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SWANLAB_EXPECTED_SOCKET: /var/run/docker.sock
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run install.sh on Ubuntu rootful Docker
+        run: |
+          chmod +x docker/*.sh scripts/*.sh
+          scripts/run-install-smoke.sh
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: |
+          if [ -f /tmp/dockerd.log ]; then
+            tail -n 300 /tmp/dockerd.log
+          fi
+
+  wsl2-rootful:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      SWANLAB_EXPECTED_SOCKET: /var/run/docker.sock
+
+    defaults:
+      run:
+        shell: wsl-bash {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup WSL2 Ubuntu
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          update: "true"
+          wsl-shell-user: root
+
+      - name: Install Docker Engine in WSL2
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates curl iptables
+          curl -fsSL https://get.docker.com | sh
+
+      - name: Run install.sh in WSL2 rootful Docker
+        run: |
+          sed -i 's/\r$//' docker/*.sh scripts/*.sh
+          chmod +x docker/*.sh scripts/*.sh
+          scripts/run-install-smoke.sh
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: |
+          if [ -f /tmp/dockerd.log ]; then
+            tail -n 300 /tmp/dockerd.log
+          fi
+
+  ubuntu-rootless:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SWANLAB_INSTALL_SCRIPT: install-dockerhub.sh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install rootless Docker dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl dbus-user-session fuse-overlayfs slirp4netns uidmap
+          curl -fsSL https://get.docker.com | sudo sh
+
+      - name: Setup rootless Docker
+        run: |
+          dockerd-rootless-setuptool.sh install --force
+          systemctl --user start docker
+          echo "DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock" >> "${GITHUB_ENV}"
+          echo "SWANLAB_EXPECTED_SOCKET=/run/user/$(id -u)/docker.sock" >> "${GITHUB_ENV}"
+
+      - name: Run install.sh on Ubuntu rootless Docker
+        run: |
+          chmod +x docker/*.sh scripts/*.sh
+          scripts/run-install-smoke.sh
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: |
+          if [ -f /tmp/dockerd.log ]; then
+            tail -n 300 /tmp/dockerd.log
+          fi
