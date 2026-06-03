@@ -91,7 +91,11 @@ SwanLab images have been updated to v1.1. Users who are deploying for the first 
 
 <br>
 
-## 🚄 Quick Deployment
+## 🚄 Kubernetes Quick Deployment
+
+Please view [this document](https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html)
+
+## 🚄 Docker Quick Deployment
 
 ### 1. Manual Deployment
 
@@ -130,7 +134,7 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 See also: [docker/README.md](./docker/README.md) for more details
 
-Tutorial documentation: [Deploy with Docker](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+Tutorial documentation: [Deploy with Docker](https://docs.swanlab.cn/en/self_host/docker/deploy.html)
 
 <br>
 

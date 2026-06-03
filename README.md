@@ -91,7 +91,11 @@ swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`in
 
 <br>
 
-## 🚄 快速部署
+## 🚄 Kubernetes快速部署
+
+请参考[此文档](https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html)
+
+## 🚄 Docker快速部署
 
 ### 1. 手动部署
 
@@ -130,7 +134,7 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 详细内容参考：[docker/README.md](./docker/README.md)
 
-教程文档：[使用Docker进行部署](https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html)
+教程文档：[使用Docker进行部署](https://docs.swanlab.cn/self_host/docker/deploy.html)
 
 
 <br>
