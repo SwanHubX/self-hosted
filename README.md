@@ -10,7 +10,7 @@
 
 SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署方式
 
-<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/guide_cloud/self_host/docker-deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a> · <a href="https://hub.docker.com/search?q=swanlab">DockerHub</a>
+<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/self_host/kubernetes/deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a> · <a href="https://hub.docker.com/search?q=swanlab">DockerHub</a>
 
 中文 / [English](./README_EN.md)
 
@@ -176,7 +176,7 @@ bash ./upgrade.sh
 <br>
 
 ## 📚 资源
-- [纯离线环境部署](https://docs.swanlab.cn/guide_cloud/self_host/offline-deployment.html)
-- [腾讯云云应用部署](https://docs.swanlab.cn/guide_cloud/self_host/tencentcloud-app.html)
-- [阿里云计算巢部署](https://docs.swanlab.cn/guide_cloud/self_host/alibabacloud-computenest.html)
-- [常见问题](https://docs.swanlab.cn/guide_cloud/self_host/faq.html)
+- [纯离线环境部署](https://docs.swanlab.cn/self_host/docker/offline-deployment.html)
+- [腾讯云云应用部署](https://docs.swanlab.cn/self_host/alibabacloud-computenest.html)
+- [阿里云计算巢部署](https://docs.swanlab.cn/self_host/tencentcloud-app.html)
+- [常见问题](https://docs.swanlab.cn/self_host/kubernetes/faq.html)
