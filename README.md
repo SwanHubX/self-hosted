@@ -28,7 +28,14 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 ## 🌟 最近更新
 
-> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v2.8.0` 版本
+> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v2.8.1` 版本
+
+**v2.8.1 (2026.06.15)**
+
+- 新特性：支持 HTML 图表
+- 优化：当搜索实验时，图表对比视图同时变化
+- 优化：提高了对 v0.8.0 SDK的适配性
+- 部署：支持 [Promethus监控方案](https://docs.swanlab.cn/self_host/kubernetes/monitor-logging.html)
 
 **v2.8.0 (2026.05.29)**
 - 修复了部分已知问题。
@@ -36,6 +43,7 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 **v2.7.4 (2026.04.27)**
 - 发布项目收藏，修复了部分已知问题
 
+<details><summary>完整更新日志</summary>
 **v2.7.3 (2026.04.08)**
 - 支持实验收藏、基线实验、保存文件等新功能
 
@@ -88,6 +96,7 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 **v1.1 (2025.4.27)**
 swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
+</details>
 
 <br>
 
@@ -156,6 +165,7 @@ bash ./upgrade.sh
 
 | 私有化版本   | 支持的 SDK 版本 |
 |-----------|------------------|
+| v2.8.1  | v0.7.4 ~ latest    |
 | v2.8.0  | v0.7.4 ~ latest    |
 | v2.7.4  | v0.7.4 ~ latest    |
 | v2.7.3  | v0.7.4 ~ latest    |
