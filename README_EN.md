@@ -31,7 +31,11 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 > 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v2.8.1`
 
 **v2.8.1 (2026.06.15)**
-- Fix some known issues.
+
+- Feature: Support HTML charts
+- Optimize: When searching experiments, the chart comparison view updates at the same time
+- Optimize: Improve compatibility with SDK v0.8.0
+- Deployment: Support the [Prometheus monitoring solution](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html)
 
 **v2.8.0 (2026.05.29)**
 - Fix some known issues.
@@ -39,6 +43,7 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 **v2.7.4 (2026.04.27)**
 - Release project favorites and fix some known issues
 
+<details><summary>Full changelog</summary>
 **v2.7.3 (2026.04.08)**
 - Support experiment favorites, baseline experiments, and file saving features
 
@@ -91,6 +96,7 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v1.1 (2025.4.27)**
 SwanLab images have been updated to v1.1. Users who are deploying for the first time can directly run `install.sh` to access v1.1, and users of the original v1 version can directly run `docker/upgrade.sh` to update and restart the `docker-compose.yaml`.
+</details>
 
 <br>
 
@@ -169,10 +175,10 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 | v2.5.0          | v0.6.0 ~ v0.7.3        |
 | v2.4            | v0.6.0 ~ v0.7.3        |
 | v2.3            | v0.6.0 ~ v0.7.3        |
-| v2.2            | v0.6.0 ~ v0.7.3        |
-| v2.1            | v0.6.0 ~ v0.7.3        |
-| v2.0            | v0.6.0 ~ v0.7.3        |
-| v1.3            | v0.6.0 ~ v0.7.3        |
+| v2.2            | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v2.1            | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v2.0            | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v1.3            | v0.6.0 ~ v0.7.3 (except grouping feature) |
 | v1.2            | v0.6.0 ~ v0.6.4        |
 | v1.1            | v0.6.0 ~ v0.6.4        |
 
@@ -183,4 +189,6 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 ## 📚 Resources
 - [Offline deployment for pure offline environments](https://docs.swanlab.cn/en/self_host/docker/offline-deployment.html)
+- [Tencent Cloud app deployment](https://docs.swanlab.cn/en/self_host/alibabacloud-computenest.html)
+- [Alibaba Cloud Compute Nest deployment](https://docs.swanlab.cn/en/self_host/tencentcloud-app.html)
 - [FAQ](https://docs.swanlab.cn/en/self_host/kubernetes/faq.html)
