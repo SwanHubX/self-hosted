@@ -1,0 +1,102 @@
+name: 'Docker Release Notify'
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g. v2.8.1)'
+        required: true
+        default: 'v2.8.1'
+
+# 允许同时运行一个作业，并取消旧的作业
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  notify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 📢 Notify Feishu on New Release
+        env:
+          FEISHU_WEBHOOK_URL: "${{ secrets.FEISHU_WEBHOOK_URL }}"
+          FEISHU_WEBHOOK_SECRET: "${{ secrets.FEISHU_WEBHOOK_SECRET }}"
+          RELEASE_TAG: "${{ github.event.release.tag_name || inputs.tag_name }}"
+          RELEASE_URL: "${{ github.event.release.html_url }}"
+        run: |
+          # tag 形如 v2.8.1，去掉前缀 v 得到 APP 版本号 2.8.1
+          APP_VERSION="${RELEASE_TAG#v}"
+          # workflow_dispatch 无 release.html_url，回退拼接 releases 页 URL
+          if [ -z "$RELEASE_URL" ]; then
+            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          fi
+          echo "Notifying Feishu: app v${APP_VERSION}, release URL: ${RELEASE_URL}"
+
+          # 飞书交互式卡片(schema 2.0)：markdown 正文(仅 APP 版本) + 按钮(open_url 跳转 release 页)。
+          # 自定义机器人 post 不支持 strong/lark_md 标签，故用 interactive 卡片渲染富文本。
+          PAYLOAD=$(APP_VERSION="$APP_VERSION" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os, json
+          app_ver = os.environ["APP_VERSION"]
+          release_url = os.environ["RELEASE_URL"]
+          md = f"App 版本: v{app_ver}"
+          body = {
+              "msg_type": "interactive",
+              "card": {
+                  "schema": "2.0",
+                  "config": {"update_multi": True},
+                  "header": {
+                      "title": {"tag": "plain_text", "content": "📢 SwanLab Self-Hosted (Docker) 版本更新通知"},
+                      "template": "blue",
+                  },
+                  "body": {
+                      "direction": "vertical",
+                      "elements": [
+                          {"tag": "markdown", "content": md, "text_align": "left"},
+                          {
+                              "tag": "button",
+                              "text": {"tag": "plain_text", "content": f"📎 self-hosted-v{app_ver}"},
+                              "type": "default",
+                              "size": "medium",
+                              "behaviors": [
+                                  {"type": "open_url", "default_url": release_url}
+                              ],
+                          },
+                      ],
+                  },
+              },
+          }
+          print(json.dumps(body, ensure_ascii=False))
+          ')
+
+          # 飞书加签：timestamp(秒) + "\n" + secret 做 HMAC-SHA256，base64 后 urlencode。
+          # 仅在配置 secret 时加签，否则按普通 webhook 发送。
+          WEBHOOK_URL="$FEISHU_WEBHOOK_URL"
+          if [ -n "$FEISHU_WEBHOOK_SECRET" ]; then
+            TIMESTAMP=$(python3 -c 'import time; print(int(time.time()))')
+            SIGN=$(FEISHU_TS="$TIMESTAMP" FEISHU_WEBHOOK_SECRET="$FEISHU_WEBHOOK_SECRET" python3 -c '
+          import os, hmac, hashlib, base64, urllib.parse
+          ts = os.environ["FEISHU_TS"]
+          secret = os.environ["FEISHU_WEBHOOK_SECRET"]
+          string_to_sign = f"{ts}\n{secret}"
+          digest = hmac.new(string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
+          print(urllib.parse.quote_plus(base64.b64encode(digest).decode("utf-8")))
+          ')
+            # webhook URL 可能已带 query 参数，按需选择 ? 或 & 拼接签名
+            case "$WEBHOOK_URL" in
+              *\?*) SEP="&" ;;
+              *)    SEP="?" ;;
+            esac
+            WEBHOOK_URL="${WEBHOOK_URL}${SEP}timestamp=${TIMESTAMP}&sign=${SIGN}"
+          fi
+
+          curl -sS -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
