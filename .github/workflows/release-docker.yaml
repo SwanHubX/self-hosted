@@ -1,0 +1,115 @@
+name: 'Docker Release Notify'
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g. v3.0.0)'
+        required: true
+
+# 允许同时运行一个作业，并取消旧的作业
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  notify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔍 Verify version consistency
+        run: |
+          RELEASE_TAG="${{ github.event.release.tag_name || inputs.tag_name }}"
+          APP_VERSION="${RELEASE_TAG#v}"
+          COMPOSE_VERSION=$(grep -oP 'VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' docker/docker-compose.yaml | head -1)
+          if [ "$APP_VERSION" != "$COMPOSE_VERSION" ]; then
+            echo "::error::Version mismatch: release tag v${APP_VERSION} but docker-compose.yaml VERSION=${COMPOSE_VERSION}"
+            exit 1
+          fi
+          echo "✅ Version consistent: v${APP_VERSION}"
+
+      - name: 📢 Notify Feishu on New Release
+        env:
+          FEISHU_WEBHOOK_URL: "${{ secrets.FEISHU_WEBHOOK_URL }}"
+          FEISHU_WEBHOOK_SIGN_KEY: "${{ secrets.FEISHU_WEBHOOK_SIGN_KEY }}"
+          RELEASE_TAG: "${{ github.event.release.tag_name || inputs.tag_name }}"
+          RELEASE_URL: "${{ github.event.release.html_url }}"
+        run: |
+          APP_VERSION="${RELEASE_TAG#v}"
+          if [ -z "$RELEASE_URL" ]; then
+            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          fi
+          echo "Notifying Feishu: app v${APP_VERSION}, release URL: ${RELEASE_URL}"
+
+          PAYLOAD=$(APP_VERSION="$APP_VERSION" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os, json
+          app_ver = os.environ["APP_VERSION"]
+          release_url = os.environ["RELEASE_URL"]
+          md = f"App 版本: v{app_ver}"
+          body = {
+              "msg_type": "interactive",
+              "card": {
+                  "schema": "2.0",
+                  "config": {"update_multi": True},
+                  "header": {
+                      "title": {"tag": "plain_text", "content": "📢 SwanLab Self-Hosted (Docker) 版本更新通知"},
+                      "template": "blue",
+                  },
+                  "body": {
+                      "direction": "vertical",
+                      "elements": [
+                          {"tag": "markdown", "content": md, "text_align": "left"},
+                          {
+                              "tag": "button",
+                              "text": {"tag": "plain_text", "content": f"📎 self-hosted-v{app_ver}"},
+                              "type": "default",
+                              "size": "medium",
+                              "behaviors": [
+                                  {"type": "open_url", "default_url": release_url}
+                              ],
+                          },
+                      ],
+                  },
+              },
+          }
+          print(json.dumps(body, ensure_ascii=False))
+          ')
+
+          WEBHOOK_URL="$FEISHU_WEBHOOK_URL"
+          if [ -n "$FEISHU_WEBHOOK_SIGN_KEY" ]; then
+            TIMESTAMP=$(python3 -c 'import time; print(int(time.time()))')
+            SIGN=$(FEISHU_TS="$TIMESTAMP" FEISHU_WEBHOOK_SIGN_KEY="$FEISHU_WEBHOOK_SIGN_KEY" python3 -c '
+          import os, hmac, hashlib, base64, urllib.parse
+          ts = os.environ["FEISHU_TS"]
+          secret = os.environ["FEISHU_WEBHOOK_SIGN_KEY"]
+          string_to_sign = f"{ts}\n{secret}"
+          digest = hmac.new(string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
+          print(urllib.parse.quote_plus(base64.b64encode(digest).decode("utf-8")))
+          ')
+            case "$WEBHOOK_URL" in
+              *\?*) SEP="&" ;;
+              *)    SEP="?" ;;
+            esac
+            WEBHOOK_URL="${WEBHOOK_URL}${SEP}timestamp=${TIMESTAMP}&sign=${SIGN}"
+          fi
+
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "HTTP $HTTP_CODE"
+          echo "$BODY"
+          if [ "$HTTP_CODE" -ne 200 ] || echo "$BODY" | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('code')==0 else 1)"; then
+            :
+          else
+            echo "::error::Feishu notification failed: $BODY"
+            exit 1
+          fi
