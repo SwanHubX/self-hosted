@@ -30,6 +30,10 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 > 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.1.0`
 
+**v3.1.0 (2026-07-29)**
+- 📊: Added support for displaying NaN data points; added a prompt for the group aggregation limit
+- 🐞: Fixed an issue where empty charts could not be hidden in multi-view mode
+
 **v3.0.0 (2026.07.21)**
 
 - 📊 New multi-view interactive dashboard online, requires SwanLab ≥ 0.9.0+ SDK
