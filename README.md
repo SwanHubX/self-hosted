@@ -28,8 +28,12 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 ## 🌟 最近更新
 
-> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.1.0` 版本
+> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.1.1` 版本
 
+**v3.1.1 (2026.08.04)**
+
+- 📉 新增跨项目对比实验
+- 📈 置顶实验数量上限提升至 20 ，折线图最多可显示的实验或分组数量提升至 25
 
 **v3.1.0 (2026.07.29)**
 
@@ -48,9 +52,11 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 - 部署：支持 [Promethus监控方案](https://docs.swanlab.cn/self_host/kubernetes/monitor-logging.html)
 
 **v2.8.0 (2026.05.29)**
+
 - 修复了部分已知问题。
 
 **v2.7.4 (2026.04.27)**
+
 - 发布项目收藏，修复了部分已知问题
 
 <details><summary>完整更新日志</summary>
@@ -58,44 +64,57 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 - 支持实验收藏、基线实验、保存文件等新功能
 
 **v2.7.1 (2026.03.06)**
+
 - 修复部分已知问题
 
 **v2.7.0 (2026.01.29)**
+
 - 优化大规模实验以及大批量指标场景下的渲染性能
 
 **v2.6.3 (2026.01.19)**
+
 - 添加心跳探测，优化图表的渲染性能
 
 **v2.6.2 (2025.12.19)**
+
 - 修复部分已知问题，同步云服务更新，支持 swanlab sdk v0.7.4
 
 **v2.5.1 (2025.12.10)**
+
 - 允许将 minio 替换为其他兼容 S3 协议的对象存储服务
 
 **v2.5.0 (2025.12.5)**
+
 - 为商业版开发了更全面的管理看板
 
 **v2.4 (2025.11.24)**
+
 - 不再需要开放 minio 的 9000 端口
 - 折线图的数据点携带时间戳信息
 
 **v2.3 (2025.11.17)**
+
 - 支持实验分组
 
 **v2.2 (2025.11.6)**
+
 - 支持折线图 x 轴自定义
 
 **v2.1 (2025.9.30)**
+
 - 上线图表视图全新UI
 - 同步到最新的公有云版功能
 
 **v2.0 (2025.9.1)**
+
 - 更新权限系统
 
 **v1.3 (2025.7.8)**
+
 - 同步到最新的公有云版功能
 
 **v1.2 (2025.5.30)**
+
 - Feature: 上线折线图创建和编辑功能，配置图表功能增加数据源选择功能，支持单张图表显示不同的指标
 - Feature: 支持在实验添加Tag标签
 - Feature: 支持折线图Log Scale；支持分组拖拽；增加swanlab.OpenApi开放接口
@@ -155,7 +174,6 @@ curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/inst
 
 教程文档：[使用Docker进行部署](https://docs.swanlab.cn/self_host/docker/deploy.html)
 
-
 <br>
 
 ## 🚀 升级版本
@@ -173,27 +191,28 @@ bash ./upgrade.sh
 
 私有化部署版本与SDK（即[swanlab](https://github.com/SwanHubX/SwanLab) python库）的兼容性如下表：
 
-| 私有化版本   | 支持的 SDK 版本 |
-|-----------|------------------|
-| v3.0.0  | v0.7.4 ~ latest    |
-| v2.8.1  | v0.7.4 ~ latest    |
-| v2.8.0  | v0.7.4 ~ latest    |
-| v2.7.4  | v0.7.4 ~ latest    |
-| v2.7.3  | v0.7.4 ~ latest    |
-| v2.7.1  | v0.7.4 ~ latest    |
-| v2.7.0  | v0.7.4 ~ latest    |
-| v2.6.3  | v0.7.4 ~ latest    |
-| v2.6.2  | v0.7.4 ~ latest    |
-| v2.5.0  | v0.6.0 ~ v0.7.3    |
-| v2.4    | v0.6.0 ~ v0.7.3    |
-| v2.3    | v0.6.0 ~ v0.7.3    |
-| v2.2    | v0.6.0 ~ v0.7.3 (除分组功能)    |
-| v2.1    | v0.6.0 ~ v0.7.3 (除分组功能)    |
-| v2.0    | v0.6.0 ~ v0.7.3 (除分组功能)    |
-| v1.3    | v0.6.0 ~ v0.7.3 (除分组功能)    |
-| v1.2    | v0.6.0 ~ v0.6.4    |
-| v1.1    | v0.6.0 ~ v0.6.4    |
-
+| 私有化版本 | 支持的 SDK 版本              |
+| ---------- | ---------------------------- |
+| v3.1.1     | v0.7.6 ~ latest              |
+| v3.1.0     | v0.7.6 ~ latest              |
+| v3.0.0     | v0.7.4 ~ latest              |
+| v2.8.1     | v0.7.4 ~ latest              |
+| v2.8.0     | v0.7.4 ~ latest              |
+| v2.7.4     | v0.7.4 ~ latest              |
+| v2.7.3     | v0.7.4 ~ latest              |
+| v2.7.1     | v0.7.4 ~ latest              |
+| v2.7.0     | v0.7.4 ~ latest              |
+| v2.6.3     | v0.7.4 ~ latest              |
+| v2.6.2     | v0.7.4 ~ latest              |
+| v2.5.0     | v0.6.0 ~ v0.7.3              |
+| v2.4       | v0.6.0 ~ v0.7.3              |
+| v2.3       | v0.6.0 ~ v0.7.3              |
+| v2.2       | v0.6.0 ~ v0.7.3 (除分组功能) |
+| v2.1       | v0.6.0 ~ v0.7.3 (除分组功能) |
+| v2.0       | v0.6.0 ~ v0.7.3 (除分组功能) |
+| v1.3       | v0.6.0 ~ v0.7.3 (除分组功能) |
+| v1.2       | v0.6.0 ~ v0.6.4              |
+| v1.1       | v0.6.0 ~ v0.6.4              |
 
 [dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
 [dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
@@ -201,6 +220,7 @@ bash ./upgrade.sh
 <br>
 
 ## 📚 资源
+
 - [纯离线环境部署](https://docs.swanlab.cn/self_host/docker/offline-deployment.html)
 - [腾讯云云应用部署](https://docs.swanlab.cn/self_host/alibabacloud-computenest.html)
 - [阿里云计算巢部署](https://docs.swanlab.cn/self_host/tencentcloud-app.html)

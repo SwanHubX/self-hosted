@@ -25,6 +25,7 @@ $ ./install.sh
 🎉 Wow, the installation is complete. Everything is perfect.
 🥰 Congratulations, self-hosted SwanLab can be accessed using {IP}:8000
 ```
+
 > If deploying on Windows system, use the `install-windows.sh` script after completing Docker Desktop installation.
 
 ### Offline Deployment

@@ -1,4 +1,4 @@
-name: 'Docker Release Notify'
+name: "Docker Release Notify"
 
 on:
   release:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag name (e.g. v3.0.0)'
+        description: "Release tag name (e.g. v3.0.0)"
         required: true
 
 # 允许同时运行一个作业，并取消旧的作业

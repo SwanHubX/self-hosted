@@ -28,9 +28,15 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.1.0`
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.1.1`
+
+**v3.1.1 (2026.08.04)**
+
+- 📉 Support "Import Runs" for cross-project comparison experiments
+- 📈 The maximum number of pinned experiments has been increased to 20; the maximum number of experiments/groups displayable in line charts has been increased to 25
 
 **v3.1.0 (2026-07-29)**
+
 - 📊: Added support for displaying NaN data points; added a prompt for the group aggregation limit
 - 🐞: Fixed an issue where empty charts could not be hidden in multi-view mode
 
@@ -46,9 +52,11 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - Deployment: Support the [Prometheus monitoring solution](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html)
 
 **v2.8.0 (2026.05.29)**
+
 - Fix some known issues.
 
 **v2.7.4 (2026.04.27)**
+
 - Release project favorites and fix some known issues
 
 <details><summary>Full changelog</summary>
@@ -56,44 +64,57 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - Support experiment favorites, baseline experiments, and file saving features
 
 **v2.7.1 (2026.03.06)**
+
 - Fix some known issues
 
 **v2.7.0 (2026.01.29)**
+
 - Optimize rendering performance in scenarios with large-scale experiments and high-volume metrics
 
 **v2.6.3 (2026.01.19)**
+
 - Add heartbeat detection, optimize the rendering performance of charts
 
 **v2.6.2 (2025.12.19)**
+
 - Fix known issues, sync cloud service updates, support swanlab sdk v0.7.4
 
 **v2.5.1 (2025.12.10)**
+
 - Allow replacing minio with other S3 protocol compatible object storage services
 
 **v2.5.0 (2025.12.5)**
+
 - Developed a more comprehensive management dashboard for enterprise edition
 
 **v2.4 (2025.11.24)**
+
 - No longer need to open port 9000 for minio
 - Data points in line charts carry timestamp information
 
 **v2.3 (2025.11.17)**
+
 - Support experiment grouping
 
 **v2.2 (2025.11.6)**
+
 - Support custom x-axis for line charts
 
 **v2.1 (2025.9.30)**
+
 - Launch new chart view UI
 - Sync to the latest public cloud version
 
 **v2.0 (2025.9.1)**
+
 - Update permission system
 
 **v1.3 (2025.7.8)**
+
 - Feature: Sync to the latest public cloud version
 
 **v1.2 (2025.5.30)**
+
 - Feature: Line chart creation and editing features launched; configure charts with data source selection, supporting multiple metrics in the same chart
 - Feature: Add Tag feature for experiments
 - Feature: Support Log Scale for line graphs; support drag-and-drop grouping; add swanlab.OpenApi open interfaces
@@ -170,26 +191,28 @@ bash ./upgrade.sh
 
 The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https://github.com/SwanHubX/SwanLab) Python library) is shown in the following table:
 
-| Self-hosted Version | Supported SDK Version |
-|------------------|-----------------------|
-| v3.0.0          | v0.7.4 ~ latest        |
-| v2.8.1          | v0.7.4 ~ latest        |
-| v2.8.0          | v0.7.4 ~ latest        |
-| v2.7.4          | v0.7.4 ~ latest        |
-| v2.7.3          | v0.7.4 ~ latest        |
-| v2.7.1          | v0.7.4 ~ latest        |
-| v2.7.0          | v0.7.4 ~ latest        |
-| v2.6.3          | v0.7.4 ~ latest        |
-| v2.6.2          | v0.7.4 ~ latest        |
-| v2.5.0          | v0.6.0 ~ v0.7.3        |
-| v2.4            | v0.6.0 ~ v0.7.3        |
-| v2.3            | v0.6.0 ~ v0.7.3        |
-| v2.2            | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v2.1            | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v2.0            | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v1.3            | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v1.2            | v0.6.0 ~ v0.6.4        |
-| v1.1            | v0.6.0 ~ v0.6.4        |
+| Self-hosted Version | Supported SDK Version                     |
+| ------------------- | ----------------------------------------- |
+| v3.1.1              | v0.7.6 ~ latest                           |
+| v3.1.0              | v0.7.6 ~ latest                           |
+| v3.0.0              | v0.7.4 ~ latest                           |
+| v2.8.1              | v0.7.4 ~ latest                           |
+| v2.8.0              | v0.7.4 ~ latest                           |
+| v2.7.4              | v0.7.4 ~ latest                           |
+| v2.7.3              | v0.7.4 ~ latest                           |
+| v2.7.1              | v0.7.4 ~ latest                           |
+| v2.7.0              | v0.7.4 ~ latest                           |
+| v2.6.3              | v0.7.4 ~ latest                           |
+| v2.6.2              | v0.7.4 ~ latest                           |
+| v2.5.0              | v0.6.0 ~ v0.7.3                           |
+| v2.4                | v0.6.0 ~ v0.7.3                           |
+| v2.3                | v0.6.0 ~ v0.7.3                           |
+| v2.2                | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v2.1                | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v2.0                | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v1.3                | v0.6.0 ~ v0.7.3 (except grouping feature) |
+| v1.2                | v0.6.0 ~ v0.6.4                           |
+| v1.1                | v0.6.0 ~ v0.6.4                           |
 
 [dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
 [dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
@@ -197,6 +220,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 <br>
 
 ## 📚 Resources
+
 - [Offline deployment for pure offline environments](https://docs.swanlab.cn/en/self_host/docker/offline-deployment.html)
 - [Tencent Cloud app deployment](https://docs.swanlab.cn/en/self_host/alibabacloud-computenest.html)
 - [Alibaba Cloud Compute Nest deployment](https://docs.swanlab.cn/en/self_host/tencentcloud-app.html)
