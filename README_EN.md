@@ -32,7 +32,10 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v3.2.0 (2026.08.24)**
 
-<!-- TODO: 补充更新内容 -->
+- 🗑 Added Recycle Bin feature. Deleted projects and experiments will be moved to the Recycle Bin, supporting restoration or permanent deletion.
+- 🔬 Added cross-project experiment comparison. Experiments from other projects can be added for comparison.
+- 🐞 Fixed an issue where empty system charts could not be hidden.
+- 🐞 Fixed an issue where the experiment color change in comparison view was not synced to the single experiment view.
 
 **v3.1.1 (2026.08.04)**
 
@@ -55,6 +58,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - Optimize: Improve compatibility with SDK v0.8.0
 - Deployment: Support the [Prometheus monitoring solution](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html)
 
+<details><summary>Full changelog</summary>
+
 **v2.8.0 (2026.05.29)**
 
 - Fix some known issues.
@@ -63,8 +68,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 - Release project favorites and fix some known issues
 
-<details><summary>Full changelog</summary>
 **v2.7.3 (2026.04.08)**
+
 - Support experiment favorites, baseline experiments, and file saving features
 
 **v2.7.1 (2026.03.06)**
