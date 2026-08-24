@@ -197,16 +197,16 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version                     |
 | ------------------- | ----------------------------------------- |
-| v3.2.0              | v0.7.6 ~ latest                           |
-| v3.1.1              | v0.7.6 ~ latest                           |
-| v3.1.0              | v0.7.6 ~ latest                           |
-| v3.0.0              | v0.7.4 ~ latest                           |
-| v2.8.1              | v0.7.4 ~ latest                           |
-| v2.8.0              | v0.7.4 ~ latest                           |
-| v2.7.4              | v0.7.4 ~ latest                           |
-| v2.7.3              | v0.7.4 ~ latest                           |
-| v2.7.1              | v0.7.4 ~ latest                           |
-| v2.7.0              | v0.7.4 ~ latest                           |
+| v3.2.0              | v0.7.6 ~ v0.9.7                           |
+| v3.1.1              | v0.7.6 ~ v0.9.2                           |
+| v3.1.0              | v0.7.4 ~ v0.9.1                           |
+| v3.0.0              | v0.7.6 ~ v0.9.0                           |
+| v2.8.1              | v0.7.6 ~ v0.8.4                           |
+| v2.8.0              | v0.7.6 ~ v0.8.3                           |
+| v2.7.4              | v0.7.4 ~ v0.7.20                          |
+| v2.7.3              | v0.7.4 ~ v0.7.20                          |
+| v2.7.1              | v0.7.4 ~ v0.7.20                          |
+| v2.7.0              | v0.7.4 ~ v0.7.20                          |
 | v2.6.3              | v0.7.4 ~ latest                           |
 | v2.6.2              | v0.7.4 ~ latest                           |
 | v2.5.0              | v0.6.0 ~ v0.7.3                           |
