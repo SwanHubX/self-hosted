@@ -176,20 +176,29 @@ update_self_hosted_version() {
     " "$COMPOSE_FILE"
 }
 
-# migrate legacy Tencent CCR registry to Alibaba Cloud ACR (repo.swanlab.cn)
-# repo names and tags stay unchanged, so behavior is fully aligned
+# migrate legacy image layout to the current ACR layout on repo.swanlab.cn:
+#   - all services live under the self-hosted/ namespace
+#   - infra images reuse the long-standing ACR repos:
+#       redis-stack-server -> redis-stack, clickhouse -> clickhouse-server,
+#       minio -> minio/minio, minio-mc -> minio/mc, logrotate:v1 -> logrotate:1.0
+# handles both the original Tencent CCR layout and the early plain-prefix ACR layout
 migrate_registry() {
-    if ! grep -q "ccr.ccs.tencentyun.com" "$COMPOSE_FILE"; then
+    if ! grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/(redis-stack-server|clickhouse|minio|minio-mc|logrotate):' "$COMPOSE_FILE"; then
         return 0
     fi
 
-    echo "🔁 Detected legacy Tencent CCR images, migrating to repo.swanlab.cn ..."
+    echo "🔁 Detected legacy image layout, migrating to repo.swanlab.cn ..."
 
-    sed -i.bak \
-        -e 's|ccr.ccs.tencentyun.com/self-hosted/|repo.swanlab.cn/self-hosted/|g' \
+    sed -i.bak -E \
+        -e 's|ccr\.ccs\.tencentyun\.com/self-hosted/|repo.swanlab.cn/self-hosted/|g' \
+        -e 's|repo\.swanlab\.cn/self-hosted/redis-stack-server:[^[:space:]]+|repo.swanlab.cn/self-hosted/redis-stack:7.2.0-v15|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/clickhouse:[^[:space:]]+|repo.swanlab.cn/self-hosted/clickhouse-server:24.3|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/minio-mc:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/minio:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/logrotate:[^[:space:]]+|repo.swanlab.cn/self-hosted/logrotate:1.0|' \
         "$COMPOSE_FILE"
 
-    if grep -q "ccr.ccs.tencentyun.com" "$COMPOSE_FILE"; then
+    if grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/(redis-stack-server|clickhouse|minio|minio-mc|logrotate):' "$COMPOSE_FILE"; then
         echo "❌ Registry migration incomplete, please check ${COMPOSE_FILE} manually."
         exit 1
     fi

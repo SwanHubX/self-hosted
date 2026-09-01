@@ -250,7 +250,7 @@ services:
       - "traefik.enable=false"
   redis:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/redis-stack-server:7.2.0-v15
+    image: repo.swanlab.cn/self-hosted/redis-stack:7.2.0-v15
     container_name: swanlab-redis
     volumes:
       - ${DATA_PATH}/redis:/data
@@ -263,7 +263,7 @@ services:
       - "traefik.enable=false"
   clickhouse:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/clickhouse:24.3
+    image: repo.swanlab.cn/self-hosted/clickhouse-server:24.3
     container_name: swanlab-clickhouse
     volumes:
       - clickhouse-data:/var/lib/clickhouse
@@ -283,7 +283,7 @@ services:
       - "traefik.enable=false"
   logrotate:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/logrotate:v1
+    image: repo.swanlab.cn/self-hosted/logrotate:1.0
     container_name: swanlab-logrotate
     volumes:
       - swanlab-house:/data
@@ -313,7 +313,7 @@ services:
       - "traefik.enable=false"
   minio:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
+    image: repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
     volumes:
       - ${DATA_PATH}/minio:/data
@@ -333,7 +333,7 @@ services:
       timeout: 5s
       retries: 3
   create-buckets:
-    image: repo.swanlab.cn/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z
+    image: repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z
     container_name: swanlab-minio-mc
     networks:
       - swanlab-net
