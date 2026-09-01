@@ -176,6 +176,26 @@ update_self_hosted_version() {
     " "$COMPOSE_FILE"
 }
 
+# migrate legacy Tencent CCR registry to Alibaba Cloud ACR (repo.swanlab.cn)
+# repo names and tags stay unchanged, so behavior is fully aligned
+migrate_registry() {
+    if ! grep -q "ccr.ccs.tencentyun.com" "$COMPOSE_FILE"; then
+        return 0
+    fi
+
+    echo "🔁 Detected legacy Tencent CCR images, migrating to repo.swanlab.cn ..."
+
+    sed -i.bak \
+        -e 's|ccr.ccs.tencentyun.com/self-hosted/|repo.swanlab.cn/self-hosted/|g' \
+        "$COMPOSE_FILE"
+
+    if grep -q "ccr.ccs.tencentyun.com" "$COMPOSE_FILE"; then
+        echo "❌ Registry migration incomplete, please check ${COMPOSE_FILE} manually."
+        exit 1
+    fi
+    echo "✅ Registry migrated to repo.swanlab.cn"
+}
+
 # check docker-compose.yaml exists
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "docker-compose.yaml not found, please run install.sh directly"
@@ -208,6 +228,8 @@ detect_and_run_docker_compose() {
 # # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
+    # migrate legacy registry (Tencent CCR -> repo.swanlab.cn), must run before version bumps
+    migrate_registry
     # 更新设置页面版本号
     update_self_hosted_version "3.2.0"
     # update all containers version

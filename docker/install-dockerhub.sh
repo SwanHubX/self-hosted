@@ -316,7 +316,7 @@ services:
       timeout: 5s
       retries: 3
   create-buckets:
-    image: ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z
+    image: swanlab/minio-mc:RELEASE.2025-04-08T15-39-49Z
     container_name: swanlab-minio-mc
     networks:
       - swanlab-net
