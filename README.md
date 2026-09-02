@@ -170,7 +170,7 @@ cd self-hosted/docker
 **方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install-dockerhub.sh
 ```
 
 **方式二：** 中国地区快速部署：

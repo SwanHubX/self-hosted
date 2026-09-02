@@ -183,7 +183,9 @@ update_self_hosted_version() {
 #       minio -> minio/minio, minio-mc -> minio/mc, logrotate:v1 -> logrotate:1.0
 # handles both the original Tencent CCR layout and the early plain-prefix ACR layout
 migrate_registry() {
-    if ! grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/(redis-stack-server|clickhouse|minio|minio-mc|logrotate):' "$COMPOSE_FILE"; then
+    # NOTE: legacy logrotate is identified by the "v1" tag; the current layout is
+    # "logrotate:1.0", so matching bare "logrotate:" would false-positive forever.
+    if ! grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/((redis-stack-server|clickhouse|minio|minio-mc):|logrotate:v1)' "$COMPOSE_FILE"; then
         return 0
     fi
 
@@ -195,10 +197,10 @@ migrate_registry() {
         -e 's|repo\.swanlab\.cn/self-hosted/clickhouse:[^[:space:]]+|repo.swanlab.cn/self-hosted/clickhouse-server:24.3|' \
         -e 's|repo\.swanlab\.cn/self-hosted/minio-mc:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z|' \
         -e 's|repo\.swanlab\.cn/self-hosted/minio:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z|' \
-        -e 's|repo\.swanlab\.cn/self-hosted/logrotate:[^[:space:]]+|repo.swanlab.cn/self-hosted/logrotate:1.0|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/logrotate:v[^[:space:]]+|repo.swanlab.cn/self-hosted/logrotate:1.0|' \
         "$COMPOSE_FILE"
 
-    if grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/(redis-stack-server|clickhouse|minio|minio-mc|logrotate):' "$COMPOSE_FILE"; then
+    if grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/((redis-stack-server|clickhouse|minio|minio-mc):|logrotate:v1)' "$COMPOSE_FILE"; then
         echo "❌ Registry migration incomplete, please check ${COMPOSE_FILE} manually."
         exit 1
     fi
