@@ -30,6 +30,12 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 > 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.3.0`
 
+**v3.3.0 (2026.09.01)**
+
+- 📊 Added the "Metric Expression" feature, which supports calculating and combining multiple metrics, and visualizing the calculation results.
+- ⚙️ Added the [swanlab.define_metric()](https://docs.swanlab.cn/en/api/py-define_metric.html) API, which allows defining chart behaviors before logging metrics, including customizing the X-axis, chart grouping, etc.
+- 🐞 Fixed an issue where users with project write-only permissions encountered a 403 error when initializing if the project already existed. Now the system will first query the project and only create it if it does not exist.
+
 **v3.2.0 (2026.08.24)**
 
 - 🗑 Added Recycle Bin feature. Deleted projects and experiments will be moved to the Recycle Bin, supporting restoration or permanent deletion.
@@ -202,6 +208,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version                     |
 | ------------------- | ----------------------------------------- |
+| v3.3.0              | v0.7.6 ~ v0.10.x                          |
 | v3.2.0              | v0.7.6 ~ v0.9.x                           |
 | v3.1.1              | v0.7.6 ~ v0.9.x                           |
 | v3.1.0              | v0.7.4 ~ v0.9.x                           |
@@ -212,8 +219,8 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 | v2.7.3              | v0.7.4 ~ v0.7.20                          |
 | v2.7.1              | v0.7.4 ~ v0.7.20                          |
 | v2.7.0              | v0.7.4 ~ v0.7.20                          |
-| v2.6.3              | v0.7.4 ~ latest                           |
-| v2.6.2              | v0.7.4 ~ latest                           |
+| v2.6.3              | v0.7.4 ~ v0.7.20                          |
+| v2.6.2              | v0.7.4 ~ v0.7.20                          |
 | v2.5.0              | v0.6.0 ~ v0.7.3                           |
 | v2.4                | v0.6.0 ~ v0.7.3                           |
 | v2.3                | v0.6.0 ~ v0.7.3                           |
