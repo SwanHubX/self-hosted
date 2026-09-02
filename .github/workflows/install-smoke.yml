@@ -6,10 +6,25 @@ on:
     paths:
       - "docker/install.sh"
       - "docker/install-dockerhub.sh"
+      - "docker/upgrade.sh"
       - "scripts/run-install-smoke.sh"
+      - "scripts/test-migrate-registry.sh"
       - ".github/workflows/install-smoke.yml"
 
 jobs:
+  migrate-registry-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run migrate_registry unit tests
+        run: |
+          chmod +x scripts/*.sh
+          scripts/test-migrate-registry.sh
+
   ubuntu-rootful:
     runs-on: ubuntu-latest
     timeout-minutes: 45

@@ -26,14 +26,32 @@ $ ./install.sh
 🥰 Congratulations, self-hosted SwanLab can be accessed using {IP}:8000
 ```
 
-> If deploying on Windows system, use the `install-windows.sh` script after completing Docker Desktop installation.
+> If deploying on Windows system, use the `install-nowsl.sh` script after completing Docker Desktop installation.
 
 ### Offline Deployment
 
-1. **Download Images on a Networked Machine:** On a machine with internet access and a Docker environment, download the necessary images by running the script located at `scripts/pull-images.sh`. After the script completes, it will generate a file named `swanlab_images.tar` in the current directory. This file contains the compressed archive of all the required images. **Please ensure that the machine used for downloading has Docker properly installed and running.**
+1. **Download Images on a Networked Machine:** On a machine with internet access and a Docker environment, download the necessary images by running the script located at `scripts/pull-images.sh` with the `--save` option. After the script completes, it will generate a file named `swanlab_images.tar` in the current directory. This file contains the compressed archive of all the required images. **Please ensure that the machine used for downloading has Docker properly installed and running.**
 2. **Transfer the Archive to the Target Machine:** Upload the `swanlab_images.tar` file to your target machine. (You can use tools like `sftp` for this purpose).
 3. **Load Images on the Target Machine:** On the target server, run the command `docker load -i swanlab_images.tar` to load the images from the archive. After the loading process is complete, you can verify the image list using the `docker images` command. It should display all the images contained in the archive.
 4. **Install SwanLab:** Proceed with the installation by executing `./install.sh`, following the same steps as the online deployment method.
+
+#### Private Deployment (Optional)
+
+If your air-gapped environment hosts images in a private Harbor registry instead of importing them via `docker load`:
+
+1. On a machine with internet access, pull all images listed in [scripts/pull-images.sh](../scripts/pull-images.sh) and push them to your internal Harbor. The `self-hosted/...` repository suffix must be preserved as-is (including the two-level paths `minio/minio` and `minio/mc`):
+
+   ```bash
+   HARBOR="harbor.example.com/swanlab"   # replace with your registry
+   docker login "${HARBOR%%/*}"          # login first if the registry is private
+   for image in $(grep -oE '"repo\.swanlab\.cn/[^"]+"' scripts/pull-images.sh | tr -d '"'); do
+     target="${HARBOR}/${image#*/}"      # repo.swanlab.cn/self-hosted/xxx -> ${HARBOR}/self-hosted/xxx
+     docker pull "$image" && docker tag "$image" "$target" && docker push "$target"
+   done
+   ```
+
+2. Replace the image prefix `repo.swanlab.cn` in `swanlab/docker-compose.yaml` on the deployment machine with `harbor.example.com/swanlab`.
+3. **Upgrade order:** After each release, pre-push the new images using the steps above before running `./upgrade.sh`. The registry migration logic in `upgrade.sh` never rewrites custom Harbor domains, so keep the compose prefix consistent with your Harbor path.
 
 ### Port Configuration
 
@@ -74,17 +92,17 @@ Execute `docker compose ps -a` in the current directory to check the running sta
 ```bash
 $ docker compose ps -a                                                                                                                                                                (base)
 NAME                 IMAGE                                                                   COMMAND                  SERVICE          CREATED          STATUS                    PORTS
-swanlab-clickhouse   ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3                      "/entrypoint.sh"         clickhouse       22 minutes ago   Up 22 minutes (healthy)   8123/tcp, 9000/tcp, 9009/tcp
-swanlab-cloud        ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v1                     "/docker-entrypoint.…"   swanlab-cloud    22 minutes ago   Up 21 minutes             80/tcp
-swanlab-fluentbit    ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.0                       "/fluent-bit/bin/flu…"   fluent-bit       22 minutes ago   Up 22 minutes             2020/tcp
-swanlab-house        ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v1                     "./app"                  swanlab-house    22 minutes ago   Up 21 minutes (healthy)   3000/tcp
-swanlab-logrotate    ccr.ccs.tencentyun.com/self-hosted/logrotate:v1                         "/sbin/tini -- /usr/…"   logrotate        22 minutes ago   Up 22 minutes
-swanlab-minio        ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z   "/usr/bin/docker-ent…"   minio            22 minutes ago   Up 22 minutes (healthy)   9000/tcp
-swanlab-next         ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v1                      "docker-entrypoint.s…"   swanlab-next     22 minutes ago   Up 21 minutes             3000/tcp
-swanlab-postgres     ccr.ccs.tencentyun.com/self-hosted/postgres:16.1                        "docker-entrypoint.s…"   postgres         22 minutes ago   Up 22 minutes (healthy)   5432/tcp
-swanlab-redis        ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15         "/entrypoint.sh"         redis            22 minutes ago   Up 22 minutes (healthy)   6379/tcp
-swanlab-server       ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v1                    "docker-entrypoint.s…"   swanlab-server   22 minutes ago   Up 21 minutes (healthy)   3000/tcp
-swanlab-traefik      ccr.ccs.tencentyun.com/self-hosted/traefik:v3.0                         "/entrypoint.sh trae…"   traefik          22 minutes ago   Up 22 minutes (healthy)   0.0.0.0:8000->80/tcp, [::]:8000->80/tcp
+swanlab-clickhouse   repo.swanlab.cn/self-hosted/clickhouse-server:24.3                      "/entrypoint.sh"         clickhouse       22 minutes ago   Up 22 minutes (healthy)   8123/tcp, 9000/tcp, 9009/tcp
+swanlab-cloud        repo.swanlab.cn/self-hosted/swanlab-cloud:v1                     "/docker-entrypoint.…"   swanlab-cloud    22 minutes ago   Up 21 minutes             80/tcp
+swanlab-fluentbit    repo.swanlab.cn/self-hosted/fluent-bit:3.1                       "/fluent-bit/bin/flu…"   fluent-bit       22 minutes ago   Up 22 minutes             2020/tcp
+swanlab-house        repo.swanlab.cn/self-hosted/swanlab-house:v1                     "./app"                  swanlab-house    22 minutes ago   Up 21 minutes (healthy)   3000/tcp
+swanlab-logrotate    repo.swanlab.cn/self-hosted/logrotate:1.0                         "/sbin/tini -- /usr/…"   logrotate        22 minutes ago   Up 22 minutes
+swanlab-minio        repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z   "/usr/bin/docker-ent…"   minio            22 minutes ago   Up 22 minutes (healthy)   9000/tcp
+swanlab-next         repo.swanlab.cn/self-hosted/swanlab-next:v1                      "docker-entrypoint.s…"   swanlab-next     22 minutes ago   Up 21 minutes             3000/tcp
+swanlab-postgres     repo.swanlab.cn/self-hosted/postgres:16.1                        "docker-entrypoint.s…"   postgres         22 minutes ago   Up 22 minutes (healthy)   5432/tcp
+swanlab-redis        repo.swanlab.cn/self-hosted/redis-stack:7.2.0-v15         "/entrypoint.sh"         redis            22 minutes ago   Up 22 minutes (healthy)   6379/tcp
+swanlab-server       repo.swanlab.cn/self-hosted/swanlab-server:v1                    "docker-entrypoint.s…"   swanlab-server   22 minutes ago   Up 21 minutes (healthy)   3000/tcp
+swanlab-traefik      repo.swanlab.cn/self-hosted/traefik:v3.1                         "/entrypoint.sh trae…"   traefik          22 minutes ago   Up 22 minutes (healthy)   0.0.0.0:8000->80/tcp, [::]:8000->80/tcp
 ```
 
 You can view the logs of each container by executing `docker compose logs <container_name>`.
@@ -92,3 +110,5 @@ You can view the logs of each container by executing `docker compose logs <conta
 ### Upgrade
 
 Execute `./upgrade.sh` to upgrade seamlessly.
+
+> The upgrade automatically migrates legacy registry layouts (Tencent CCR / early ACR naming) to `repo.swanlab.cn`. The first migrated upgrade re-pulls all images; old ones can be cleaned up with `docker image prune`. Offline / private-Harbor users should pre-push images first (see [Offline Deployment](#offline-deployment)). Compose files referencing a custom Harbor domain are never rewritten automatically.

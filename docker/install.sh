@@ -216,7 +216,7 @@ services:
   # Gateway
   traefik:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/traefik:v3.1
+    image: repo.swanlab.cn/self-hosted/traefik:v3.1
     container_name: swanlab-traefik
     ports:
       - "${EXPOSE_PORT}:80"
@@ -230,7 +230,7 @@ services:
   # Databases
   postgres:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/postgres:16.1
+    image: repo.swanlab.cn/self-hosted/postgres:16.1
     container_name: swanlab-postgres
     environment:
       TZ: UTC
@@ -248,7 +248,7 @@ services:
       - "traefik.enable=false"
   redis:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/redis-stack-server:7.2.0-v15
+    image: repo.swanlab.cn/self-hosted/redis-stack:7.2.0-v15
     container_name: swanlab-redis
     volumes:
       - ${DATA_PATH}/redis:/data
@@ -261,7 +261,7 @@ services:
       - "traefik.enable=false"
   clickhouse:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/clickhouse:24.3
+    image: repo.swanlab.cn/self-hosted/clickhouse-server:24.3
     container_name: swanlab-clickhouse
     volumes:
       - ${DATA_PATH}/clickhouse:/var/lib/clickhouse/
@@ -279,7 +279,7 @@ services:
       - "traefik.enable=false"
   logrotate:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/logrotate:v1
+    image: repo.swanlab.cn/self-hosted/logrotate:1.0
     container_name: swanlab-logrotate
     volumes:
       - swanlab-house:/data
@@ -293,7 +293,7 @@ services:
       - "traefik.enable=false"
   fluent-bit:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/fluent-bit:3.1
+    image: repo.swanlab.cn/self-hosted/fluent-bit:3.1
     container_name: swanlab-fluentbit
     command: ["fluent-bit/bin/fluent-bit", "-c", "/conf/fluent-bit.conf"]
     volumes:
@@ -309,7 +309,7 @@ services:
       - "traefik.enable=false"
   minio:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/minio:RELEASE.2025-02-28T09-55-16Z
+    image: repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: swanlab-minio
     volumes:
       - ${DATA_PATH}/minio:/data
@@ -329,7 +329,7 @@ services:
       timeout: 5s
       retries: 3
   create-buckets:
-    image: ccr.ccs.tencentyun.com/self-hosted/minio-mc:RELEASE.2025-04-08T15-39-49Z
+    image: repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z
     container_name: swanlab-minio-mc
     networks:
       - swanlab-net
@@ -351,7 +351,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-server:v3.2.0
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v3.3.0
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -365,7 +365,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=3.2.0
+      - VERSION=3.3.0
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
@@ -378,7 +378,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-house:v3.2.0
+    image: repo.swanlab.cn/self-hosted/swanlab-house:v3.3.0
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -407,7 +407,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-cloud:v3.2.0
+    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v3.3.0
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -422,7 +422,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: ccr.ccs.tencentyun.com/self-hosted/swanlab-next:v3.2.0
+    image: repo.swanlab.cn/self-hosted/swanlab-next:v3.3.0
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -513,7 +513,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-     echo " Self-Hosted Docker v3.2.0 - @SwanLab"
+     echo " Self-Hosted Docker v3.3.0 - @SwanLab"
     echo -e "${reset}"
     print_access_urls() {
       local port="${EXPOSE_PORT}"

@@ -28,7 +28,14 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 ## 🌟 最近更新
 
-> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.2.0` 版本
+> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.3.0` 版本
+
+**v3.3.0 (2026.09.01)**
+> ⚠️ **注意**: 本次升级统一使用 repo.swanlab.cn 管理基础设施和应用镜像，首次升级会自动改写 `docker-compose.yaml` 中的镜像引用并重新拉取全部镜像，旧镜像可通过 `docker image prune` 清理
+
+- 📊 新增「指标表达式」功能，支持对多个指标进行计算与组合，并将计算结果进行可视化
+- ⚙️ 新增 [swanlab.define_metric()](https://docs.swanlab.cn/api/py-define_metric.html) API，支持在记录指标前定义图表行为，包括自定义 X 轴、图表分组等。
+- 🐞 修复仅有项目写入权限的用户，在项目已存在时初始化报错 403 的问题，现在会先查询项目，仅在项目不存在时创建项目
 
 **v3.2.0 (2026.08.24)**
 
@@ -170,7 +177,7 @@ cd self-hosted/docker
 **方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
 
 ```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
+curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install-dockerhub.sh
 ```
 
 **方式二：** 中国地区快速部署：
@@ -202,6 +209,7 @@ bash ./upgrade.sh
 
 | 私有化版本 | 支持的 SDK 版本              |
 | ---------- | ---------------------------- |
+| v3.3.0     | v0.7.6 ~ v0.10.x             |
 | v3.2.0     | v0.7.6 ~ v0.9.x              |
 | v3.1.1     | v0.7.6 ~ v0.9.x              |
 | v3.1.0     | v0.7.4 ~ v0.9.x              |
@@ -212,8 +220,8 @@ bash ./upgrade.sh
 | v2.7.3     | v0.7.4 ~ v0.7.20             |
 | v2.7.1     | v0.7.4 ~ v0.7.20             |
 | v2.7.0     | v0.7.4 ~ v0.7.20             |
-| v2.6.3     | v0.7.4 ~ latest              |
-| v2.6.2     | v0.7.4 ~ latest              |
+| v2.6.3     | v0.7.4 ~ v0.7.20             |
+| v2.6.2     | v0.7.4 ~ v0.7.20             |
 | v2.5.0     | v0.6.0 ~ v0.7.3              |
 | v2.4       | v0.6.0 ~ v0.7.3              |
 | v2.3       | v0.6.0 ~ v0.7.3              |

@@ -176,6 +176,37 @@ update_self_hosted_version() {
     " "$COMPOSE_FILE"
 }
 
+# migrate legacy image layout to the current ACR layout on repo.swanlab.cn:
+#   - all services live under the self-hosted/ namespace
+#   - infra images reuse the long-standing ACR repos:
+#       redis-stack-server -> redis-stack, clickhouse -> clickhouse-server,
+#       minio -> minio/minio, minio-mc -> minio/mc, logrotate:v1 -> logrotate:1.0
+# handles both the original Tencent CCR layout and the early plain-prefix ACR layout
+migrate_registry() {
+    # NOTE: legacy logrotate is identified by the "v1" tag; the current layout is
+    # "logrotate:1.0", so matching bare "logrotate:" would false-positive forever.
+    if ! grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/((redis-stack-server|clickhouse|minio|minio-mc):|logrotate:v1)' "$COMPOSE_FILE"; then
+        return 0
+    fi
+
+    echo "🔁 Detected legacy image layout, migrating to repo.swanlab.cn ..."
+
+    sed -i.bak -E \
+        -e 's|ccr\.ccs\.tencentyun\.com/self-hosted/|repo.swanlab.cn/self-hosted/|g' \
+        -e 's|repo\.swanlab\.cn/self-hosted/redis-stack-server:[^[:space:]]+|repo.swanlab.cn/self-hosted/redis-stack:7.2.0-v15|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/clickhouse:[^[:space:]]+|repo.swanlab.cn/self-hosted/clickhouse-server:24.3|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/minio-mc:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/minio:[^[:space:]]+|repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z|' \
+        -e 's|repo\.swanlab\.cn/self-hosted/logrotate:v[^[:space:]]+|repo.swanlab.cn/self-hosted/logrotate:1.0|' \
+        "$COMPOSE_FILE"
+
+    if grep -qE 'ccr\.ccs\.tencentyun\.com|repo\.swanlab\.cn/self-hosted/((redis-stack-server|clickhouse|minio|minio-mc):|logrotate:v1)' "$COMPOSE_FILE"; then
+        echo "❌ Registry migration incomplete, please check ${COMPOSE_FILE} manually."
+        exit 1
+    fi
+    echo "✅ Registry migrated to repo.swanlab.cn"
+}
+
 # check docker-compose.yaml exists
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "docker-compose.yaml not found, please run install.sh directly"
@@ -208,10 +239,12 @@ detect_and_run_docker_compose() {
 # # check y or Y
 if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     echo "begin update"
+    # migrate legacy registry (Tencent CCR -> repo.swanlab.cn), must run before version bumps
+    migrate_registry
     # 更新设置页面版本号
-    update_self_hosted_version "3.2.0"
+    update_self_hosted_version "3.3.0"
     # update all containers version
-    update_version "3.2.0"
+    update_version "3.3.0"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
