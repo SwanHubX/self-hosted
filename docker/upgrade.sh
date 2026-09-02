@@ -242,9 +242,9 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # migrate legacy registry (Tencent CCR -> repo.swanlab.cn), must run before version bumps
     migrate_registry
     # 更新设置页面版本号
-    update_self_hosted_version "3.2.0"
+    update_self_hosted_version "3.3.0"
     # update all containers version
-    update_version "3.2.0"
+    update_version "3.3.0"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
