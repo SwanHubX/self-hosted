@@ -6,6 +6,7 @@
 #   2. 早期 ACR 布局（老命名） -> 迁移到 repo.swanlab.cn 新布局
 #   3. 最新 ACR 布局          -> 无变化（幂等 / 新用户）
 #   4. 自定义 Harbor 域名布局 -> 无变化（不误伤内网用户）
+#   5. DockerHub 布局         -> 无变化（海外用户不被改写到国内 ACR）
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -143,6 +144,20 @@ run_migrate "${HARBOR}"
 if ! cmp -s "${HARBOR}" "${HARBOR}.before"; then
     echo "::error::migrate_registry unexpectedly rewrote a custom Harbor layout" >&2
     diff -u "${HARBOR}.before" "${HARBOR}" >&2 || true
+    exit 1
+fi
+echo "   ✅ pass"
+
+echo "== Case 5: DockerHub layout is left untouched (overseas users) =="
+DOCKERHUB="${TMP_DIR}/dockerhub.yaml"
+# DockerHub 布局：swanlab/ org 前缀 + 老命名（DockerHub 侧镜像未改名，无需迁移）
+make_compose "swanlab/" \
+    "redis-stack-server" "clickhouse" "logrotate:v1" "minio" "minio-mc" > "${DOCKERHUB}"
+cp "${DOCKERHUB}" "${DOCKERHUB}.before"
+run_migrate "${DOCKERHUB}"
+if ! cmp -s "${DOCKERHUB}" "${DOCKERHUB}.before"; then
+    echo "::error::migrate_registry unexpectedly rewrote a DockerHub layout" >&2
+    diff -u "${DOCKERHUB}.before" "${DOCKERHUB}" >&2 || true
     exit 1
 fi
 echo "   ✅ pass"

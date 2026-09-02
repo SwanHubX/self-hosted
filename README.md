@@ -31,6 +31,7 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 > 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.3.0` 版本
 
 **v3.3.0 (2026.09.01)**
+> ⚠️ **注意**: 本次升级统一使用 repo.swanlab.cn 管理基础设施和应用镜像，首次升级会自动改写 `docker-compose.yaml` 中的镜像引用并重新拉取全部镜像，旧镜像可通过 `docker image prune` 清理
 
 - 📊 新增「指标表达式」功能，支持对多个指标进行计算与组合，并将计算结果进行可视化
 - ⚙️ 新增 [swanlab.define_metric()](https://docs.swanlab.cn/api/py-define_metric.html) API，支持在记录指标前定义图表行为，包括自定义 X 轴、图表分组等。
