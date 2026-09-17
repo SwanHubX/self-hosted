@@ -32,7 +32,9 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v3.4.0 (2026.09.17)**
 
-<!-- TODO: 补充更新内容 -->
+- 📊 Added "Quick Create Chart" feature to improve chart configuration efficiency within views.
+- 📊 Added independent URLs for each view to facilitate sharing.
+- 👥 "Add Comparison Experiment" now supports selecting experiments from collaborators' projects.
 
 **v3.3.0 (2026.09.01)**
 
@@ -212,7 +214,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version                     |
 | ------------------- | ----------------------------------------- |
-| v3.4.0              | v0.7.6 ~ latest                           |
+| v3.4.0              | v0.7.6 ~ v0.10.x                          |
 | v3.3.0              | v0.7.6 ~ v0.10.x                          |
 | v3.2.0              | v0.7.6 ~ v0.9.x                           |
 | v3.1.1              | v0.7.6 ~ v0.9.x                           |
