@@ -65,14 +65,14 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 - 📊 全新多视图交互看板上线，需要搭配 SwanLab ≥ 0.9.0+ SDK 使用
 
+<details><summary>完整更新日志</summary>
+
 **v2.8.1 (2026.06.15)**
 
 - 新特性：支持 HTML 图表
 - 优化：当搜索实验时，图表对比视图同时变化
 - 优化：提高了对 v0.8.0 SDK的适配性
 - 部署：支持 [Promethus监控方案](https://docs.swanlab.cn/self_host/kubernetes/monitor-logging.html)
-
-<details><summary>完整更新日志</summary>
 
 **v2.8.0 (2026.05.29)**
 

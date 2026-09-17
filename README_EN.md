@@ -63,14 +63,14 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 - 📊 New multi-view interactive dashboard online, requires SwanLab ≥ 0.9.0+ SDK
 
+<details><summary>Full Changelog</summary>
+
 **v2.8.1 (2026.06.15)**
 
 - Feature: Support HTML charts
 - Optimize: When searching experiments, the chart comparison view updates at the same time
 - Optimize: Improve compatibility with SDK v0.8.0
 - Deployment: Support the [Prometheus monitoring solution](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html)
-
-<details><summary>Full changelog</summary>
 
 **v2.8.0 (2026.05.29)**
 
