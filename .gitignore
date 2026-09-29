@@ -12,3 +12,4 @@ playground
 data
 .env
 docker/swanlab
+docker-next/swanlab

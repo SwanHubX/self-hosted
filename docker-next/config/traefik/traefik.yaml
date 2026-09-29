@@ -1,0 +1,48 @@
+# traefik 静态配置（启动时加载）
+# 语义基线：charts/charts/self-hosted templates/gateway/config.yaml 的 traefik.yaml
+# 差异（A 模式）：新增 docker provider（labels 路由发现副本），k8s 版仅 file provider
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO
+
+# 定义入口点（端口对齐 chart gateway.service.ports）
+entryPoints:
+  web:
+    address: ":80"
+    # S3 文件上传需要透传 Forwarded 头
+    forwardedHeaders:
+      insecure: true
+  # 集群内流量入口（swanlab-next 的 API_URL/API_INTERNAL_URL 指向 gateway:8080）
+  internal:
+    address: ":8080"
+  # traefik 自身入口：承载 /ping 健康检查（显式声明，避免依赖默认值）
+  traefik:
+    address: ":8081"
+  metrics:
+    address: ":9100"
+
+providers:
+  # A 模式核心：docker provider 逐容器发现业务副本（--scale 即生效，实例级健康摘除）
+  # socket 由 compose 只读挂载；仅 network=swanlab-net 内、且 traefik.enable=true 的容器参与路由
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: swanlab-net
+  # file provider 承载 identify / s3-host 中间件与 block 路由（watch 热加载）
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+# 健康检查端点固定在 traefik 入口（:8081/ping）
+ping:
+  entryPoint: "traefik"
+  terminatingStatusCode: 503
+
+experimental:
+  localPlugins:
+    identify:
+      moduleName: github.com/swanhubx/swanlab-helper/identify
