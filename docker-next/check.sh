@@ -4,7 +4,7 @@
 # 用法: ./check.sh [运行目录(默认 ./swanlab)]
 #
 # 无副作用只读巡检（plan §10.3）：环境版本 / 运行目录完整性 / 防呆校验 /
-# 渲染 / 项目一致性（混栈检测）/ 容器健康 / 磁盘余量
+# 渲染 / 项目一致性（混栈检测）/ vector 单实例防呆 / 容器健康 / 磁盘余量
 # 退出码: 0 = 无 FAIL（允许有 WARN）；1 = 存在 FAIL；2 = 运行目录不存在
 # 供运维日常与 CI 复用
 set -o pipefail
@@ -105,8 +105,24 @@ else
   pass_ "项目 swanlab 无外来容器（无混栈）"
 fi
 
-# ---------------- 6. 容器健康 ----------------
-echo "${bold}----- 6. 容器状态 -----${reset}"
+# ---------------- 6. vector 单实例防呆（plan §6） ----------------
+# vector disk buffer 是单写者 WAL + ack ledger，compose 的 --scale 副本共享同一 bind mount
+# （${DATA_PATH}/vector），多进程共写同一目录必然损坏；误操作时两个实例都会显示 healthy，
+# 只看容器健康无法暴露问题，必须显式数副本数
+echo "${bold}----- 6. vector 单实例 -----${reset}"
+VECTOR_N=$(vector_replica_count "$TARGET_DIR")
+if [ "$VECTOR_N" -gt 1 ]; then
+  fail_ "检测到 ${VECTOR_N} 个 vector 容器：plan §6 明确禁止 --scale vector——副本共享同一 bind 目录，disk buffer 为单写者 WAL + ack ledger，多副本共写必然损坏数据（指标静默丢失/缓冲损坏）"
+  fail_ "   立即恢复单实例: cd ${TARGET_DIR} && docker compose up -d --scale vector=1"
+  fail_ '   若缓冲已损坏，停栈后删除 ${DATA_PATH}/vector 目录再启动（会丢弃未投递缓冲）'
+elif [ "$VECTOR_N" -eq 1 ]; then
+  pass_ "vector 单实例（1 个容器，符合 plan §6 约束）"
+else
+  warn_ "未发现 vector 容器（服务未启动或已 down）"
+fi
+
+# ---------------- 7. 容器健康 ----------------
+echo "${bold}----- 7. 容器状态 -----${reset}"
 ids=$( (cd "$TARGET_DIR" && docker compose ps -aq 2>/dev/null) )
 if [ -z "$ids" ]; then
   warn_ "无运行容器（服务未启动或已 down）"
@@ -129,8 +145,8 @@ else
   done
 fi
 
-# ---------------- 7. 磁盘余量 ----------------
-echo "${bold}----- 7. 磁盘 -----${reset}"
+# ---------------- 8. 磁盘余量 ----------------
+echo "${bold}----- 8. 磁盘 -----${reset}"
 DATA_PATH_V=$(env_get DATA_PATH "$ENV_FILE")
 [ -z "$DATA_PATH_V" ] && DATA_PATH_V="./data"
 case "$DATA_PATH_V" in

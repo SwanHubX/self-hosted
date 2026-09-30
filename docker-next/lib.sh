@@ -75,7 +75,8 @@ require_compose_v224() {
 # 探测 docker socket 路径（rootless / OrbStack 差异），结果写入 DOCKER_SOCKET_PATH
 resolve_docker_socket_path() {
   local docker_host="${DOCKER_HOST:-}"
-  local rootless_socket="/run/user/$(id -u)/docker.sock"
+  local rootless_socket
+  rootless_socket="/run/user/$(id -u)/docker.sock"
 
   if [ -z "$docker_host" ]; then
     docker_host=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
@@ -101,11 +102,12 @@ random_password() {
   openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | cut -c1-10
 }
 
-# 探测混入本项目的"外来"容器：属于 compose 项目 swanlab、但 working_dir 不是 <run_dir>
+# 探测混入本项目的"外来"容器：属于 compose 项目 <project>、但 working_dir 不是 <run_dir>
 # 结果写入全局 FOREIGN_CONTAINER / FOREIGN_WD（未发现时 FOREIGN_CONTAINER 为空，返回 1）
-# 供 install 预检与 check.sh 混栈巡检共用
+# 供 install 预检、check.sh 混栈巡检与 migrate.sh 共用
+# 第二个参数为 compose 项目名（默认 swanlab）；migrate.sh 的旧目录名不保证是 swanlab
 foreign_project_container() {
-  local run_dir="$1" run_dir_abs parent ids id
+  local run_dir="$1" project="${2:-swanlab}" run_dir_abs parent ids id
   FOREIGN_CONTAINER=""
   FOREIGN_WD=""
   if [ -d "$run_dir" ]; then
@@ -116,7 +118,7 @@ foreign_project_container() {
     run_dir_abs=$(cd "$parent" && pwd)/$(basename "$run_dir")
   fi
 
-  ids=$(docker ps -a --filter "label=com.docker.compose.project=swanlab" --format '{{.ID}}' 2>/dev/null)
+  ids=$(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.ID}}' 2>/dev/null)
   for id in $ids; do
     FOREIGN_WD=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id" 2>/dev/null)
     [ -z "$FOREIGN_WD" ] && continue
@@ -138,7 +140,7 @@ require_project_name_free() {
   if foreign_project_container "$1"; then
     log_err "检测到 compose 项目 swanlab 已部署于其他目录：容器 ${FOREIGN_CONTAINER}（working_dir ${FOREIGN_WD}）"
     log_err "项目名固定为 swanlab（原地迁移语义），并存安装会造成端口抢占与容器互为 orphan。"
-    log_err "存量部署请使用 migrate.sh 原地迁移；或先在旧目录执行 docker compose down 后重试。"
+    log_err "存量部署请使用 migrate.sh 原地迁移（./migrate.sh <旧目录>）；或先在旧目录执行 docker compose down 后重试。"
     exit 1
   fi
   return 0
@@ -300,6 +302,26 @@ check_disk_space() {
 }
 
 # ---------------- compose 操作 ----------------
+
+# 运行目录对应的 compose 项目名（.env 的 COMPOSE_PROJECT_NAME 优先，否则 compose 取目录名）
+# 解析失败（compose 不可渲染）时回退为目录名——旧版 docker 部署的 .env 不含该键，即取 swanlab/
+compose_project_name() {
+  local run_dir="$1" name=""
+  if [ -d "$run_dir" ]; then
+    name=$( (cd "$run_dir" && docker compose config 2>/dev/null) | sed -n 's/^name:[[:space:]]*//p' | head -1 )
+  fi
+  [ -n "$name" ] || name=$(basename "${run_dir%/}")
+  printf '%s\n' "$name"
+}
+
+# 本项目 vector 容器数（含已停止；-a），供 check.sh 防呆
+# plan §6：vector 固定单实例——compose 的 --scale 副本共享同一 bind mount，
+# 而 vector disk buffer 是单写者 WAL + ack ledger，多进程共写同一目录必然损坏
+vector_replica_count() {
+  local run_dir="$1" n
+  n=$( (cd "$run_dir" && docker compose ps -aq vector 2>/dev/null) | grep -c . )
+  printf '%s\n' "${n:-0}"
+}
 
 # 渲染检查（cwd 无关，内部 cd；compose 自动读取运行目录的 .env）
 render_check() {

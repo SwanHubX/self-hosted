@@ -26,7 +26,7 @@ services:
   # ---------------- 网关 ----------------
   gateway:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/public/traefik:3.6
+    image: repo.swanlab.cn/public/traefik:3.6
     command: ["--configfile=/etc/traefik/traefik.yaml"]
     ports:
       - "${EXPOSE_PORT:-8000}:80"
@@ -48,7 +48,7 @@ services:
 
   # 一次性：复制 identify 插件到共享卷（对齐 chart initContainer download-identify）
   gateway-plugins:
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/public/swanlab-helper/identify:v1.2
+    image: repo.swanlab.cn/public/swanlab-helper/identify:v1.2
     restart: "no"
     environment:
       COPY_TO: /plugins
@@ -59,7 +59,7 @@ services:
   # 固定单实例：--scale 副本共享同一 bind mount，vector disk buffer 为单写者 WAL，多进程共写必然损坏
   vector:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/public/vector:0.51.1-debian
+    image: repo.swanlab.cn/public/vector:0.51.1-debian
     command: ["--config", "/etc/vector/vector.yaml"]
     depends_on:
       # 关键：vector 必须等 clickhouse 健康再启动（required:false 兼容外接 CH）。
@@ -88,7 +88,7 @@ services:
   postgres:
     <<: *common
     profiles: ["postgres"]
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/postgres:16.1
+    image: repo.swanlab.cn/self-hosted/postgres:16.1
     environment:
       TZ: UTC
       POSTGRES_USER: swanlab
@@ -107,7 +107,7 @@ services:
   redis:
     <<: *common
     profiles: ["redis"]
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/redis-stack:7.4.0-v8
+    image: repo.swanlab.cn/self-hosted/redis-stack:7.4.0-v8
     volumes:
       - ${DATA_PATH:-./data}/redis:/data
     healthcheck:
@@ -121,7 +121,7 @@ services:
   clickhouse:
     <<: *common
     profiles: ["clickhouse"]
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/clickhouse-server:24.3
+    image: repo.swanlab.cn/self-hosted/clickhouse-server:24.3
     environment:
       TZ: UTC
       CLICKHOUSE_USER: swanlab
@@ -140,7 +140,7 @@ services:
   minio:
     <<: *common
     profiles: ["minio"]
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - ${DATA_PATH:-./data}/minio:/data
@@ -164,7 +164,7 @@ services:
   # 一次性：mc 建桶（--ignore-existing 幂等，重复 up 安全）
   minio-init:
     profiles: ["minio"]
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-08-13T08-35-41Z
     networks:
       - swanlab-net
     restart: "no"
@@ -185,7 +185,7 @@ services:
   # ---------------- 业务服务 ----------------
   swanlab-server:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/swanlab-server:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v${SWANLAB_VERSION:-3.4.0}
     deploy:
       replicas: ${SERVER_REPLICAS:-2}
     depends_on:
@@ -239,7 +239,7 @@ services:
 
   swanlab-auth:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/swanlab-auth:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-auth:v${SWANLAB_VERSION:-3.4.0}
     deploy:
       replicas: ${AUTH_REPLICAS:-2}
     depends_on:
@@ -268,7 +268,7 @@ services:
 
   swanlab-house:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/swanlab-house:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-house:v${SWANLAB_VERSION:-3.4.0}
     deploy:
       replicas: ${HOUSE_REPLICAS:-2}
     depends_on:
@@ -317,7 +317,7 @@ services:
 
   swanlab-cloud:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/swanlab-cloud:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v${SWANLAB_VERSION:-3.4.0}
     deploy:
       replicas: ${CLOUD_REPLICAS:-1}
     healthcheck:
@@ -329,7 +329,7 @@ services:
 
   swanlab-next:
     <<: *common
-    image: ${REGISTRY_PREFIX:-repo.swanlab.cn}/self-hosted/swanlab-next:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-next:v${SWANLAB_VERSION:-3.4.0}
     deploy:
       replicas: ${NEXT_REPLICAS:-2}
     depends_on:

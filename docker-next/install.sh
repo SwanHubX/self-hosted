@@ -221,9 +221,6 @@ S3_PRIVATE_PATH_STYLE=true
 S3_PRIVATE_BUCKET=swanlab-private
 S3_ACCESS_KEY=${S3_ACCESS_KEY}
 S3_SECRET_KEY=${S3_SECRET_KEY}
-
-# ---- 镜像仓库前缀 ----
-REGISTRY_PREFIX=repo.swanlab.cn
 EOF
 chmod 600 "${RUN_DIR}/.env"
 
@@ -265,4 +262,6 @@ echo "📁 运行目录: ${RUN_DIR}（配置 ${RUN_DIR}/.env，数据 ${DATA_PAT
 echo "🔧 常用操作:"
 echo "   - 调整副本数: 编辑 ${RUN_DIR}/.env 的 *_REPLICAS 后 docker compose up -d"
 echo "   - 升级版本:   ${SCRIPT_DIR}/upgrade.sh ${RUN_DIR}"
-echo "   - 日常巡检:   docker compose ps && docker compose logs -f <service>"
+echo "   - 日常巡检:   ${SCRIPT_DIR}/check.sh ${RUN_DIR}（docker compose ps && docker compose logs -f <service>）"
+echo "   - 存量迁移:   ${SCRIPT_DIR}/migrate.sh <旧版 docker 运行目录>（旧版单实例架构 → docker-next）"
+echo "⚠️  禁止 --scale vector：disk buffer 为单写者 WAL，多副本共享同一数据目录必然损坏（check.sh 会拦）"
