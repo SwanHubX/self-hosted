@@ -4,6 +4,8 @@
 #   - vector：固定单实例（禁止 --scale vector，disk buffer 单写者），替代 fluent-bit 链路
 #   - 数据层四件套独立 profile：COMPOSE_PROFILES 控制，支持混合外接
 #   - 业务副本数经 .env 调整（deploy.replicas），默认对齐 chart（server/auth/house/next=2，cloud=1）
+# 版本维护：业务镜像 tag 由 .env 的 SWANLAB_VERSION 驱动（不设回退默认——丢键即拉镜像失败，
+#   防止 .env 缺失时静默用旧版）；bump 版本改 .env.example 与 scripts/pull-images.sh 清单
 # 前置要求：docker compose >= v2.24（depends_on.required 长语法）
 
 networks:
@@ -185,7 +187,7 @@ services:
   # ---------------- 业务服务 ----------------
   swanlab-server:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-server:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v${SWANLAB_VERSION}
     deploy:
       replicas: ${SERVER_REPLICAS:-2}
     depends_on:
@@ -239,7 +241,7 @@ services:
 
   swanlab-auth:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-auth:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-auth:v${SWANLAB_VERSION}
     deploy:
       replicas: ${AUTH_REPLICAS:-2}
     depends_on:
@@ -268,7 +270,7 @@ services:
 
   swanlab-house:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-house:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-house:v${SWANLAB_VERSION}
     deploy:
       replicas: ${HOUSE_REPLICAS:-2}
     depends_on:
@@ -317,7 +319,7 @@ services:
 
   swanlab-cloud:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v${SWANLAB_VERSION}
     deploy:
       replicas: ${CLOUD_REPLICAS:-1}
     healthcheck:
@@ -329,7 +331,7 @@ services:
 
   swanlab-next:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-next:v${SWANLAB_VERSION:-3.4.0}
+    image: repo.swanlab.cn/self-hosted/swanlab-next:v${SWANLAB_VERSION}
     deploy:
       replicas: ${NEXT_REPLICAS:-2}
     depends_on:

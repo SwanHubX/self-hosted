@@ -99,6 +99,8 @@ CH_HOST=""; CH_HTTP_PORT="8123"; CH_TCP_PORT="9000"; CH_DATABASE="app"; CH_USER=
 # S3：本机模式保持 MinIO 口径（false/9000）；外接分支按交互结果覆盖
 S3_PUBLIC_ENDPOINT=""; S3_PRIVATE_ENDPOINT=""; S3_ACCESS_KEY=""; S3_SECRET_KEY=""
 S3_REGION=""; S3_PUBLIC_DOMAIN=""; S3_USE_SSL="false"; S3_PORT="9000"
+# 外接默认 virtual-hosted style（path-style=false，云 S3 口径）；本机 MinIO 保持 true
+S3_PATH_STYLE="true"
 
 if [ "$PG_EXTERNAL" -eq 1 ] && [ "$SKIP_INPUT" -eq 0 ]; then
   read -p "   PostgreSQL 连接串 DATABASE_URL: " DATABASE_URL
@@ -141,7 +143,9 @@ if [ "$S3_EXTERNAL" -eq 1 ] && [ "$SKIP_INPUT" -eq 0 ]; then
   S3_DEFAULT_PORT=443; [ "$S3_USE_SSL" = "false" ] && S3_DEFAULT_PORT=80
   read -p "   端口 [${S3_DEFAULT_PORT}]: " S3_PORT
   [ -z "$S3_PORT" ] && S3_PORT="$S3_DEFAULT_PORT"
-  log_warn "外接 S3 需预先创建桶：swanlab-public（公共读）/ swanlab-private（私有）"
+  # 外接默认 vhost style；MinIO 兼容存储装完后改 .env 的 S3_*_PATH_STYLE=true
+  S3_PATH_STYLE="false"
+  log_warn "外接 S3 需预先创建桶：swanlab-public（公共读）/ swanlab-private（私有）；默认 virtual-hosted style（path-style=false），MinIO 兼容存储请装后改 .env 的 S3_*_PATH_STYLE=true"
 fi
 
 # ---- 4. 组装 profile 与凭据 ----
@@ -212,14 +216,14 @@ S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT}
 S3_PUBLIC_REGION=${S3_REGION}
 S3_PUBLIC_PORT=${S3_PORT}
 S3_PUBLIC_USE_SSL=${S3_USE_SSL}
-S3_PUBLIC_PATH_STYLE=true
+S3_PUBLIC_PATH_STYLE=${S3_PATH_STYLE}
 S3_PUBLIC_BUCKET=swanlab-public
 S3_PUBLIC_DOMAIN=${S3_PUBLIC_DOMAIN}
 S3_PRIVATE_ENDPOINT=${S3_PRIVATE_ENDPOINT}
 S3_PRIVATE_REGION=${S3_REGION}
 S3_PRIVATE_PORT=${S3_PORT}
 S3_PRIVATE_USE_SSL=${S3_USE_SSL}
-S3_PRIVATE_PATH_STYLE=true
+S3_PRIVATE_PATH_STYLE=${S3_PATH_STYLE}
 S3_PRIVATE_BUCKET=swanlab-private
 S3_ACCESS_KEY=${S3_ACCESS_KEY}
 S3_SECRET_KEY=${S3_SECRET_KEY}

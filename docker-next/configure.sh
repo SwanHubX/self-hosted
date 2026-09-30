@@ -256,8 +256,11 @@ case "$ANS" in
     env_set S3_PRIVATE_PORT "$V_PORT" "$ENV_FILE"
     env_set S3_PUBLIC_USE_SSL "$V_SSL" "$ENV_FILE"
     env_set S3_PRIVATE_USE_SSL "$V_SSL" "$ENV_FILE"
+    # 外接默认 virtual-hosted style（云 S3 口径）；MinIO 兼容存储用户装后手动改回 true
+    env_set S3_PUBLIC_PATH_STYLE "false" "$ENV_FILE"
+    env_set S3_PRIVATE_PATH_STYLE "false" "$ENV_FILE"
     mark_change "SS_STORAGE_TYPE S3_*"
-    echo "   ✅ S3 → 外部对象存储"
+    echo "   ✅ S3 → 外部对象存储（path-style=false/vhost；MinIO 兼容存储请改 .env 的 S3_*_PATH_STYLE=true）"
     ;;
 esac
 

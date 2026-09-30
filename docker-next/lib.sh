@@ -174,6 +174,9 @@ validate_env() {
 
   local errors=0 v
 
+  # compose 镜像 tag 不设回退默认（v${SWANLAB_VERSION}），丢键会渲染出 ":v" 到拉镜像才失败——在此显式拦截
+  [ -z "$(env_get SWANLAB_VERSION "$envfile")" ] && { log_err "SWANLAB_VERSION 不能为空（镜像 tag 依赖此值；对照 .env.example 补写）"; errors=$((errors + 1)); }
+
   v=$(env_get DATABASE_URL "$envfile")
   if has_profile postgres; then
     [ -n "$v" ] && log_warn "postgres 为本机部署，但 DATABASE_URL 已填写（将连外部实例，本机容器空转）"
@@ -226,6 +229,10 @@ validate_env() {
       # 端口/协议不强拦（内网 http S3 合法），但疑似本机 MinIO 口径时强提示
       if [ "$(env_get S3_PUBLIC_PORT "$envfile")" = "9000" ] && [ "$(env_get S3_PUBLIC_USE_SSL "$envfile")" = "false" ]; then
         log_warn "外接 S3 端口 9000 且未启用 SSL——疑似本机 MinIO 口径（chart 外接默认 443/true），请确认与外部存储实际一致"
+      fi
+      # path-style 同理：外接默认 false（vhost，云 S3 口径），true 仅 MinIO 兼容存储需要
+      if [ "$(env_get S3_PUBLIC_PATH_STYLE "$envfile")" = "true" ] && [ "$(env_get S3_PRIVATE_PATH_STYLE "$envfile")" = "true" ]; then
+        log_warn "外接 S3 path-style=true——云 S3 通常为 false（virtual-hosted style）；仅 MinIO 兼容存储需要 true，请确认"
       fi
       ;;
     *)
