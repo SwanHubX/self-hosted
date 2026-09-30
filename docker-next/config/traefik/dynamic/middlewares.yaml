@@ -1,0 +1,32 @@
+# traefik 动态配置（file provider 承载，watch 热加载）
+# 语义基线：charts/charts/self-hosted templates/gateway/config.yaml 的 dynamic.yaml
+# 分工：业务路由（/api、/api/auth、/api/house、/、S3 桶）由各服务 labels 声明（docker provider），
+#       本文件只承载内容不随副本数变化的部分：中间件 + internal 接口屏蔽路由
+
+http:
+  middlewares:
+    # identify 插件：向 swanlab-server /api/identity 鉴权（对齐 chart swanlab.gateway.identify）
+    swanlab-identify:
+      plugin:
+        identify:
+          AuthUrl: "http://swanlab-server:3000/api/identity"
+    # s3-host：改写 Host 指向本机 minio（对齐 chart swanlab.gateway.s3 的 headers 中间件）
+    # 仅本机 minio 模式下被 minio 的 labels 路由引用；外接 S3 时路由随 profile 消失，本定义空置无害
+    swanlab-s3-host:
+      headers:
+        customRequestHeaders:
+          Host: "minio:9000"
+
+  routers:
+    # 内部接口屏蔽（对齐 chart server-router-block / house-router-block）
+    # 规则长度决定默认优先级：长于业务路由 /api、/api/house，确保精确命中后交由 noop 丢弃
+    server-router-block:
+      rule: "PathPrefix(`/api/internal`)"
+      service: noop@internal
+      entryPoints:
+        - "web"
+    house-router-block:
+      rule: "PathPrefix(`/api/house/internal`)"
+      service: noop@internal
+      entryPoints:
+        - "web"

@@ -1,0 +1,134 @@
+# vector 配置（固定单实例，禁止 --scale vector）
+# 语义基线：charts/charts/self-hosted templates/vector/config.yaml
+# 数据流：house 直推 http :8686 → remap → 按 type 分流 scalar/media/log → 三个 clickhouse sink
+# ClickHouse 连接参数经环境变量注入（compose 由 .env 提供，CLICKHOUSE_DB 默认 app 对齐 chart）
+
+data_dir: "/var/lib/vector"
+
+api:
+  enabled: false
+
+acknowledgements:
+  enabled: true
+
+sources:
+  http_metrics:
+    type: http_server
+    address: "0.0.0.0:8686"
+    encoding: json
+    acknowledgements:
+      enabled: true
+
+  # Vector 自身内部指标（CPU/内存/吞吐/utilization 等）
+  internal_metrics:
+    type: internal_metrics
+    scrape_interval_secs: 30
+
+transforms:
+  process_metrics:
+    type: remap
+    inputs:
+      - http_metrics
+    source: |
+      .ts_obj = parse_timestamp(.time, "%Y-%m-%dT%H:%M:%S.%fZ") ?? now()
+      .timestamp = to_unix_timestamp(.ts_obj, unit: "milliseconds")
+      del(.time)
+      .uid = to_int!(.uid)
+      .epoch = to_int!(.epoch)
+      if .type != "log" {
+        .step = to_int!(.step)
+      }
+      if .type == "media" {
+        .indexing = to_int!(.indexing)
+        if is_null(.other) { .other = {} }
+      }
+
+  metric_router:
+    type: route
+    inputs:
+      - process_metrics
+    route:
+      scalar_stream: .type == "scalar"
+      media_stream: .type == "media"
+      log_stream: .type == "log"
+
+  clean_scalar:
+    type: remap
+    inputs: ["metric_router.scalar_stream"]
+    source: 'del(.type); del(.ts_obj)'
+
+  clean_media:
+    type: remap
+    inputs: ["metric_router.media_stream"]
+    source: 'del(.type); del(.ts_obj)'
+
+  clean_log:
+    type: remap
+    inputs: ["metric_router.log_stream"]
+    source: 'del(.type); del(.ts_obj)'
+
+sinks:
+  clickhouse_scalar:
+    type: clickhouse
+    inputs: ["clean_scalar"]
+    endpoint: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
+    database: "${CLICKHOUSE_DB}"
+    table: "scalar"
+    compression: gzip
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 10000
+      timeout_secs: 5
+    buffer:
+      type: disk
+      # 10Gi，对齐 chart vector.sinks.bufferMaxSize；单写者 WAL，多进程共写会损坏
+      max_size: 10737418240
+      when_full: block
+
+  clickhouse_media:
+    type: clickhouse
+    inputs: ["clean_media"]
+    endpoint: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
+    database: "${CLICKHOUSE_DB}"
+    table: "media"
+    compression: gzip
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 10000
+      timeout_secs: 5
+    buffer:
+      type: disk
+      max_size: 10737418240
+      when_full: block
+
+  clickhouse_log:
+    type: clickhouse
+    inputs: ["clean_log"]
+    endpoint: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
+    database: "${CLICKHOUSE_DB}"
+    table: "log"
+    compression: gzip
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 10000
+      timeout_secs: 5
+    buffer:
+      type: disk
+      max_size: 10737418240
+      when_full: block
+
+  # Prometheus 抓取端点（9090，容器内监听；需要暴露时在 compose 增加端口映射）
+  prometheus_exporter:
+    type: prometheus_exporter
+    inputs:
+      - internal_metrics
+    address: "0.0.0.0:9090"

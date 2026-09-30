@@ -1,0 +1,364 @@
+# SwanLab Self-Hosted（docker-next 架构）
+# 语义基线：charts/charts/self-hosted（appVersion 3.4.0）
+#   - gateway：traefik 3.6 标准镜像，docker provider（labels 路由，副本感知）+ file provider（中间件/block 路由）
+#   - vector：固定单实例（禁止 --scale vector，disk buffer 单写者），替代 fluent-bit 链路
+#   - 数据层四件套独立 profile：COMPOSE_PROFILES 控制，支持混合外接
+#   - 业务副本数经 .env 调整（deploy.replicas），默认对齐 chart（server/auth/house/next=2，cloud=1）
+# 版本维护：业务镜像 tag 由 .env 的 SWANLAB_VERSION 驱动（不设回退默认——丢键即拉镜像失败，
+#   防止 .env 缺失时静默用旧版）；bump 版本改 .env.example 与 scripts/pull-images.sh 清单
+# 前置要求：docker compose >= v2.24（depends_on.required 长语法）
+
+networks:
+  swanlab-net:
+    name: swanlab-net
+
+volumes:
+  gateway-plugins:
+
+x-common: &common
+  networks:
+    - swanlab-net
+  restart: unless-stopped
+  logging:
+    options:
+      max-size: 50m
+      max-file: "3"
+
+services:
+  # ---------------- 网关 ----------------
+  gateway:
+    <<: *common
+    image: repo.swanlab.cn/public/traefik:3.6
+    command: ["--configfile=/etc/traefik/traefik.yaml"]
+    ports:
+      - "${EXPOSE_PORT:-8000}:80"
+    volumes:
+      # 只读 socket：docker provider 发现副本；rootless/OrbStack 路径差异由 .env DOCKER_SOCKET_PATH 承载
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
+      - gateway-plugins:/plugins-local/src/github.com/swanhubx/swanlab-helper
+    depends_on:
+      gateway-plugins:
+        condition: service_completed_successfully
+    healthcheck:
+      # /ping 挂在 traefik 入口（:8081）；:8080 是 internal 入口，无 /ping
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8081/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 一次性：复制 identify 插件到共享卷（对齐 chart initContainer download-identify）
+  gateway-plugins:
+    image: repo.swanlab.cn/public/swanlab-helper/identify:v1.2
+    restart: "no"
+    environment:
+      COPY_TO: /plugins
+    volumes:
+      - gateway-plugins:/plugins
+
+  # ---------------- 指标管道 ----------------
+  # 固定单实例：--scale 副本共享同一 bind mount，vector disk buffer 为单写者 WAL，多进程共写必然损坏
+  vector:
+    <<: *common
+    image: repo.swanlab.cn/public/vector:0.51.1-debian
+    command: ["--config", "/etc/vector/vector.yaml"]
+    depends_on:
+      # 关键：vector 必须等 clickhouse 健康再启动（required:false 兼容外接 CH）。
+      # 实测（隔离复现）：若 vector 先于 CH 启动（healthcheck failed），其 sink 批次的
+      # 空闲定时器永久失效——单条事件无限滞留，直到后续事件到达才连带刷出，
+      # 表现为"实验最后一批指标/媒体长时间不显示"。
+      clickhouse:
+        condition: service_healthy
+        required: false
+    volumes:
+      - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ${DATA_PATH:-./data}/vector:/var/lib/vector
+    environment:
+      CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
+      CLICKHOUSE_PORT: ${CLICKHOUSE_HTTP_PORT:-8123}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-swanlab}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-app}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8686'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---------------- 数据层（独立 profile，外接某项即从 COMPOSE_PROFILES 移除） ----------------
+  postgres:
+    <<: *common
+    profiles: ["postgres"]
+    image: repo.swanlab.cn/self-hosted/postgres:16.1
+    environment:
+      TZ: UTC
+      POSTGRES_USER: swanlab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: app
+    volumes:
+      - ${DATA_PATH:-./data}/postgres/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=false"
+
+  redis:
+    <<: *common
+    profiles: ["redis"]
+    image: repo.swanlab.cn/self-hosted/redis-stack:7.4.0-v8
+    volumes:
+      - ${DATA_PATH:-./data}/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=false"
+
+  clickhouse:
+    <<: *common
+    profiles: ["clickhouse"]
+    image: repo.swanlab.cn/self-hosted/clickhouse-server:24.3
+    environment:
+      TZ: UTC
+      CLICKHOUSE_USER: swanlab
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - ${DATA_PATH:-./data}/clickhouse:/var/lib/clickhouse/
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=false"
+
+  minio:
+    <<: *common
+    profiles: ["minio"]
+    image: repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - ${DATA_PATH:-./data}/minio:/data
+    environment:
+      MINIO_ROOT_USER: swanlab
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    labels:
+      - "traefik.enable=true"
+      # 桶名插值：路由前缀须与实际桶名一致（path-style 上传 URL 为 /<bucket>/<key>）
+      - "traefik.http.routers.swanlab-s3.rule=PathPrefix(`/${S3_PUBLIC_BUCKET:-swanlab-public}`) || PathPrefix(`/${S3_PRIVATE_BUCKET:-swanlab-private}`)"
+      - "traefik.http.routers.swanlab-s3.entrypoints=web"
+      - "traefik.http.routers.swanlab-s3.middlewares=swanlab-s3-host@file"
+      - "traefik.http.services.swanlab-s3.loadbalancer.server.port=9000"
+    healthcheck:
+      # 新版镜像内 `mc ready local` 会挂死，改用官方 HTTP 存活端点（镜像内有 curl）
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 一次性：mc 建桶（--ignore-existing 幂等，重复 up 安全）
+  minio-init:
+    profiles: ["minio"]
+    image: repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    networks:
+      - swanlab-net
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 swanlab ${MINIO_ROOT_PASSWORD}
+      && mc mb --ignore-existing myminio/${S3_PRIVATE_BUCKET:-swanlab-private}
+      && mc anonymous set private myminio/${S3_PRIVATE_BUCKET:-swanlab-private}
+      && mc mb --ignore-existing myminio/${S3_PUBLIC_BUCKET:-swanlab-public}
+      && mc anonymous set public myminio/${S3_PUBLIC_BUCKET:-swanlab-public}
+      "
+    labels:
+      - "traefik.enable=false"
+
+  # ---------------- 业务服务 ----------------
+  swanlab-server:
+    <<: *common
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v${SWANLAB_VERSION}
+    deploy:
+      replicas: ${SERVER_REPLICAS:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+    command: bash -c "npx prisma migrate deploy && node migrate.js && pm2-runtime app.js"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.swanlab-server.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.swanlab-server.entrypoints=web,internal"
+      - "traefik.http.routers.swanlab-server.middlewares=swanlab-identify@file"
+      - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
+      - "traefik.http.services.swanlab-server.loadbalancer.healthcheck.path=/api/"
+      - "traefik.http.services.swanlab-server.loadbalancer.healthcheck.interval=10s"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}
+      # 两级回退：REPLICA 留空时沿用主库串（.env.example 语义），再兜底本机默认串。
+      # 外接 pg 且只填 DATABASE_URL 时，若直接回退本机默认串会指向未启动的 postgres 容器
+      - DATABASE_URL_REPLICA=${DATABASE_URL_REPLICA:-${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}}
+      - REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
+      - VERSION=${SWANLAB_VERSION}
+      - SERVER_PREFIX=/api
+      - SS_HOUSE_URL=http://swanlab-house:3000/api/house
+      - SS_EXPERIMENT_MAX_COLUMNS=${MAX_METRICS_PER_COPY:-20000}
+      - SS_EXPERIMENT_MAX_CHARTS=${MAX_METRICS_PER_COPY:-20000}
+      - SS_STORAGE_TYPE=${SS_STORAGE_TYPE:-local}
+      - SS_PUBLIC_STORAGE_ENDPOINT=${S3_PUBLIC_ENDPOINT:-minio}
+      - SS_PUBLIC_STORAGE_REGION=${S3_PUBLIC_REGION:-local}
+      - SS_PUBLIC_STORAGE_PATH_STYLE=${S3_PUBLIC_PATH_STYLE:-true}
+      - SS_PUBLIC_STORAGE_PORT=${S3_PUBLIC_PORT:-9000}
+      - SS_PUBLIC_STORAGE_USE_SSL=${S3_PUBLIC_USE_SSL:-false}
+      - SS_PUBLIC_STORAGE_BUCKET=${S3_PUBLIC_BUCKET:-swanlab-public}
+      - SS_AVATAR_DOMAIN=${S3_PUBLIC_DOMAIN:-}
+      - SS_PRIVATE_STORAGE_ENDPOINT=${S3_PRIVATE_ENDPOINT:-minio}
+      - SS_PRIVATE_STORAGE_REGION=${S3_PRIVATE_REGION:-local}
+      - SS_PRIVATE_STORAGE_PATH_STYLE=${S3_PRIVATE_PATH_STYLE:-true}
+      - SS_PRIVATE_STORAGE_PORT=${S3_PRIVATE_PORT:-9000}
+      - SS_PRIVATE_STORAGE_USE_SSL=${S3_PRIVATE_USE_SSL:-false}
+      - SS_PRIVATE_STORAGE_BUCKET=${S3_PRIVATE_BUCKET:-swanlab-private}
+      - ACCESS_KEY=${S3_ACCESS_KEY:-swanlab}
+      - SECRET_KEY=${S3_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000/api/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  swanlab-auth:
+    <<: *common
+    image: repo.swanlab.cn/self-hosted/swanlab-auth:v${SWANLAB_VERSION}
+    deploy:
+      replicas: ${AUTH_REPLICAS:-2}
+    depends_on:
+      redis:
+        condition: service_healthy
+        required: false
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.swanlab-auth.rule=PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.swanlab-auth.entrypoints=web,internal"
+      - "traefik.http.routers.swanlab-auth.middlewares=swanlab-identify@file"
+      - "traefik.http.services.swanlab-auth.loadbalancer.server.port=3000"
+      - "traefik.http.services.swanlab-auth.loadbalancer.healthcheck.path=/api/auth/health"
+      - "traefik.http.services.swanlab-auth.loadbalancer.healthcheck.interval=10s"
+    environment:
+      - SA_OAUTH_ENABLED=false
+      - SA_REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
+      - SA_SERVER_URL=http://swanlab-server:3000/api
+      - SA_SSO_PUBLIC_URL=${PUBLIC_HOST:-}
+    healthcheck:
+      # 待确认项 6 已实证：根路径 / 返回 404，真实健康端点为 /api/auth/health（200）
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000/api/auth/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  swanlab-house:
+    <<: *common
+    image: repo.swanlab.cn/self-hosted/swanlab-house:v${SWANLAB_VERSION}
+    deploy:
+      replicas: ${HOUSE_REPLICAS:-2}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+      vector:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.swanlab-house.rule=PathPrefix(`/api/house`)"
+      - "traefik.http.routers.swanlab-house.entrypoints=web,internal"
+      - "traefik.http.routers.swanlab-house.middlewares=swanlab-identify@file"
+      - "traefik.http.services.swanlab-house.loadbalancer.server.port=3000"
+      - "traefik.http.services.swanlab-house.loadbalancer.healthcheck.path=/api/house/health"
+      - "traefik.http.services.swanlab-house.loadbalancer.healthcheck.interval=10s"
+    environment:
+      - SH_VECTOR_ENABLE=true
+      - SH_VECTOR_TIMEOUT=30s
+      - SH_VECTOR_URL=http://vector:8686
+      - SH_API_PREFIX=/api/house
+      - SH_DISTRIBUTED_ENABLE=true
+      - SH_SERVER_URL=http://swanlab-server:3000/api
+      - SH_DB_HOST=${CLICKHOUSE_HOST:-clickhouse}
+      - SH_DB_PORT=${CLICKHOUSE_TCP_PORT:-9000}
+      - SH_DB_NAME=${CLICKHOUSE_DATABASE:-app}
+      - SH_DB_USERNAME=${CLICKHOUSE_USER:-swanlab}
+      - SH_DB_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - SH_REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
+      - SH_FLAG_ID_IGNORE=true
+      - SH_MINIO_ENDPOINT=${S3_PRIVATE_ENDPOINT:-minio}:${S3_PRIVATE_PORT:-9000}
+      - SH_MINIO_USE_SSL=${S3_PRIVATE_USE_SSL:-false}
+      - SH_MINIO_REGION=${S3_PRIVATE_REGION:-local}
+      - SH_MINIO_PATH_STYLE=${S3_PRIVATE_PATH_STYLE:-true}
+      - SH_MINIO_PRIVATE_BUCKET=${S3_PRIVATE_BUCKET:-swanlab-private}
+      - SH_MINIO_SECRET_ID=${S3_ACCESS_KEY:-swanlab}
+      - SH_MINIO_SECRET_KEY=${S3_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000/api/house/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  swanlab-cloud:
+    <<: *common
+    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v${SWANLAB_VERSION}
+    deploy:
+      replicas: ${CLOUD_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:80"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  swanlab-next:
+    <<: *common
+    image: repo.swanlab.cn/self-hosted/swanlab-next:v${SWANLAB_VERSION}
+    deploy:
+      replicas: ${NEXT_REPLICAS:-2}
+    depends_on:
+      # 依赖门控对齐 chart next initContainer(ping)：等 server/cloud/house 全部就绪再启动，
+      # 避免 up -d 并行启动窗口内 next 先于依赖就绪（页面 502/超时）
+      swanlab-server:
+        condition: service_healthy
+      swanlab-cloud:
+        condition: service_healthy
+      swanlab-house:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.swanlab-next.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.swanlab-next.entrypoints=web"
+      - "traefik.http.services.swanlab-next.loadbalancer.server.port=3000"
+      - "traefik.http.services.swanlab-next.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.swanlab-next.loadbalancer.healthcheck.interval=10s"
+    environment:
+      - CLOUD_URL=http://swanlab-cloud:80
+      - API_URL=http://gateway:8080/api
+      - API_VERIFIER_URL=http://swanlab-server:3000/api/identity
+      - API_INTERNAL_URL=http://gateway:8080/api
+      - API_DISPLAY_HOST=${PUBLIC_HOST:-}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s

@@ -12,3 +12,7 @@ playground
 data
 .env
 docker/swanlab
+docker-next/swanlab
+# 仓库根执行 install.sh 的默认运行目录
+*/swanlab/
+*.legacy.bak
