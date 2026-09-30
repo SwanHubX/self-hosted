@@ -331,9 +331,15 @@ services:
     deploy:
       replicas: ${NEXT_REPLICAS:-2}
     depends_on:
+      # 依赖门控对齐 chart next initContainer(ping)：等 server/cloud/house 全部就绪再启动，
+      # 避免 up -d 并行启动窗口内 next 先于依赖就绪（页面 502/超时）
       swanlab-server:
         condition: service_healthy
         required: false
+      swanlab-cloud:
+        condition: service_healthy
+      swanlab-house:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.swanlab-next.rule=PathPrefix(`/`)"

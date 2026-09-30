@@ -84,6 +84,19 @@ else
   log_info "跳过交互（-s）：数据层全部本机部署"
 fi
 
+# ---- 3.5 磁盘预检 ----
+# vector 三个 sink 各 10Gi disk buffer（when_full=block）最坏 30Gi，与 pg/CH/minio 数据同盘；
+# 阈值 40Gi 对齐 chart vector persistence.storageSize（≥3×buffer）
+case "$DATA_PATH" in
+  /*) DISK_CHECK_PATH="$DATA_PATH" ;;
+  *)  DISK_CHECK_PATH="${RUN_DIR}/${DATA_PATH}" ;;
+esac
+if [ "$SKIP_INPUT" -eq 1 ]; then
+  check_disk_space "$DISK_CHECK_PATH" 40 warn          # 冒烟/测试环境不强制
+else
+  check_disk_space "$DISK_CHECK_PATH" 40 confirm       # 真实部署确认后可继续
+fi
+
 # 外接参数收集（免交互模式下全部留空 = 本机默认）
 DATABASE_URL=""; DATABASE_URL_REPLICA=""; REDIS_URL=""
 CH_HOST=""; CH_HTTP_PORT="8123"; CH_TCP_PORT="9000"; CH_DATABASE="app"; CH_USER=""

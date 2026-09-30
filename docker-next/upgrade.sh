@@ -100,19 +100,14 @@ if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
   log_warn "当前版本与目标版本相同（重跑迁移与重建，不改变版本）"
 fi
 
-# 磁盘剩余（数据目录所在分区）
+# 磁盘剩余（数据目录所在分区；40Gi 阈值对齐 chart vector persistence，详见 check_disk_space）
 DATA_PATH_V=$(env_get DATA_PATH "${TARGET_DIR}/.env")
 [ -z "$DATA_PATH_V" ] && DATA_PATH_V="./data"
-CHECK_PATH="${TARGET_DIR}/${DATA_PATH_V}"
-[ -d "$CHECK_PATH" ] || CHECK_PATH="${TARGET_DIR}"
-AVAIL_KB=$(df -k "$CHECK_PATH" 2>/dev/null | awk 'NR==2{print $4}')
-if [ -n "$AVAIL_KB" ]; then
-  if [ "$AVAIL_KB" -lt 10485760 ]; then
-    log_warn "数据目录所在磁盘剩余 $((AVAIL_KB / 1024 / 1024))GiB（< 10GiB），升级与迁移缓冲可能不足"
-  else
-    log_ok "磁盘剩余空间: $((AVAIL_KB / 1024 / 1024))GiB"
-  fi
-fi
+case "$DATA_PATH_V" in
+  /*) CHECK_PATH="$DATA_PATH_V" ;;
+  *)  CHECK_PATH="${TARGET_DIR}/${DATA_PATH_V}" ;;
+esac
+check_disk_space "$CHECK_PATH" 40 warn
 
 # 配置校验与渲染
 validate_env "${TARGET_DIR}/.env" || die "当前 .env 防呆校验未通过，请先修正再升级"

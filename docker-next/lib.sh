@@ -51,14 +51,23 @@ require_docker() {
 }
 
 # compose >= v2.24（depends_on.required 长语法的版本闸门）
-require_compose_v224() {
+# compose_version_ok：仅返回码判断（0=满足 2=不可用 1=版本过低），不输出不退出
+compose_version_ok() {
   local ver major minor
   ver=$(docker compose version --short 2>/dev/null | sed 's/^v//' | cut -d- -f1)
-  [ -n "$ver" ] || die "docker compose v2 插件不可用（docker compose version 无输出）"
+  [ -n "$ver" ] || return 2
   major=$(echo "$ver" | cut -d. -f1)
   minor=$(echo "$ver" | cut -d. -f2)
-  if [ "$major" -lt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -lt 24 ]; }; then
-    die "需要 docker compose >= v2.24（当前 ${ver}；depends_on.required 长语法依赖此版本）"
+  major=${major:-0}
+  minor=${minor:-0}
+  [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 24 ]; }
+}
+
+require_compose_v224() {
+  local ver
+  ver=$(docker compose version --short 2>/dev/null | sed 's/^v//' | cut -d- -f1)
+  if ! compose_version_ok; then
+    die "需要 docker compose >= v2.24（当前 ${ver:-不可用}；depends_on.required 长语法依赖此版本）"
   fi
   log_ok "docker compose 版本满足要求（${ver} >= 2.24）"
 }
@@ -92,13 +101,13 @@ random_password() {
   openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | cut -c1-10
 }
 
-# 项目名占用预检（install 专用；migrate.sh 原地迁移有意沿用项目名，不调用此函数）
-# 项目名固定 swanlab（原地迁移依赖同名接管网络/卷/容器前缀）。若同名 compose 项目
-# 已存在于其他运行目录（如旧版 docker 部署——旧安装器默认目录也叫 swanlab/），
-# 并存安装会导致：宿主机端口抢占、两栈容器互为 orphan、docker compose 将两份
-# compose 文件合并进同一项目视图（清理任一侧波及另一侧）——必须拒绝。
-require_project_name_free() {
-  local run_dir="$1" run_dir_abs parent
+# 探测混入本项目的"外来"容器：属于 compose 项目 swanlab、但 working_dir 不是 <run_dir>
+# 结果写入全局 FOREIGN_CONTAINER / FOREIGN_WD（未发现时 FOREIGN_CONTAINER 为空，返回 1）
+# 供 install 预检与 check.sh 混栈巡检共用
+foreign_project_container() {
+  local run_dir="$1" run_dir_abs parent ids id
+  FOREIGN_CONTAINER=""
+  FOREIGN_WD=""
   if [ -d "$run_dir" ]; then
     run_dir_abs=$(cd "$run_dir" && pwd)
   else
@@ -107,22 +116,32 @@ require_project_name_free() {
     run_dir_abs=$(cd "$parent" && pwd)/$(basename "$run_dir")
   fi
 
-  local ids id wd foreign=""
   ids=$(docker ps -a --filter "label=com.docker.compose.project=swanlab" --format '{{.ID}}' 2>/dev/null)
   for id in $ids; do
-    wd=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id" 2>/dev/null)
-    [ -z "$wd" ] && continue
-    if [ "$wd" != "$run_dir_abs" ]; then
-      foreign=$(docker inspect --format '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##')
-      break
+    FOREIGN_WD=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id" 2>/dev/null)
+    [ -z "$FOREIGN_WD" ] && continue
+    if [ "$FOREIGN_WD" != "$run_dir_abs" ]; then
+      FOREIGN_CONTAINER=$(docker inspect --format '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##')
+      return 0
     fi
   done
+  FOREIGN_WD=""
+  return 1
+}
 
-  [ -z "$foreign" ] && return 0
-  log_err "检测到 compose 项目 swanlab 已部署于其他目录：容器 ${foreign}（working_dir ${wd}）"
-  log_err "项目名固定为 swanlab（原地迁移语义），并存安装会造成端口抢占与容器互为 orphan。"
-  log_err "存量部署请使用 migrate.sh 原地迁移；或先在旧目录执行 docker compose down 后重试。"
-  exit 1
+# 项目名占用预检（install 专用；migrate.sh 原地迁移有意沿用项目名，不调用此函数）
+# 项目名固定 swanlab（原地迁移依赖同名接管网络/卷/容器前缀）。若同名 compose 项目
+# 已存在于其他运行目录（如旧版 docker 部署——旧安装器默认目录也叫 swanlab/），
+# 并存安装会导致：宿主机端口抢占、两栈容器互为 orphan、docker compose 将两份
+# compose 文件合并进同一项目视图（清理任一侧波及另一侧）——必须拒绝。
+require_project_name_free() {
+  if foreign_project_container "$1"; then
+    log_err "检测到 compose 项目 swanlab 已部署于其他目录：容器 ${FOREIGN_CONTAINER}（working_dir ${FOREIGN_WD}）"
+    log_err "项目名固定为 swanlab（原地迁移语义），并存安装会造成端口抢占与容器互为 orphan。"
+    log_err "存量部署请使用 migrate.sh 原地迁移；或先在旧目录执行 docker compose down 后重试。"
+    exit 1
+  fi
+  return 0
 }
 
 # ---------------- .env 解析与防呆校验 ----------------
@@ -215,6 +234,69 @@ validate_env() {
 
   [ "$errors" -eq 0 ] || return 1
   log_ok "防呆校验通过（COMPOSE_PROFILES=${profiles:-<空>} / SS_STORAGE_TYPE=${sst}）"
+}
+
+# env_set <key> <value> <file>：更新或追加一个键（值原样写入，不经 shell/sed 解释）
+# 先剔除该键全部旧行（顺带消重复键）再追加——与 compose "最后一条生效"语义一致
+# 经 cat > 写回，保留原文件权限（.env 的 600）
+env_set() {
+  local key="$1" value="$2" file="$3" tmp
+  [ -f "$file" ] || die ".env 不存在: ${file}"
+  tmp=$(mktemp) || die "mktemp 失败"
+  grep -vE "^${key}=" "$file" > "$tmp" 2>/dev/null || true
+  printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  cat "$tmp" > "$file" || { rm -f "$tmp"; die "写入 ${file} 失败"; }
+  rm -f "$tmp"
+}
+
+# profile 列表维护（COMPOSE_PROFILES 逗号串）
+profile_add() {  # <profiles> <name>
+  case ",$1," in *",$2,"*) echo "$1" ;; *) echo "${1:+$1,}$2" ;; esac
+}
+
+profile_remove() {  # <profiles> <name>
+  echo "$1" | tr ',' '\n' | grep -vx -- "$2" | paste -sd, -
+}
+
+# 磁盘剩余空间检查（对齐 chart vector persistence 40Gi / buffer ≥3× 语义：
+# 三个 sink 各 10Gi disk buffer，when_full=block 最坏 30Gi，且与 pg/CH/minio 数据同盘）
+# check_disk_space <路径> <最小GiB> <模式: strict|confirm|warn>
+#   strict  不足即 die（安装等不可降级场景）
+#   confirm 交互确认后继续；非交互终端（管道/CI）降级为 warn
+#   warn    仅警告
+# 路径不存在时向上取最近存在的祖先目录（安装前数据目录尚未创建）
+check_disk_space() {
+  local path="$1" min_gib="$2" mode="${3:-warn}" p avail_kb avail_gib
+  p="$path"
+  while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
+  avail_kb=$(df -k "$p" 2>/dev/null | awk 'NR==2{print $4}')
+  if [ -z "$avail_kb" ]; then
+    log_warn "无法检测磁盘剩余空间（df 无输出），跳过检查"
+    return 0
+  fi
+  avail_gib=$((avail_kb / 1024 / 1024))
+  if [ "$avail_gib" -ge "$min_gib" ]; then
+    log_ok "磁盘剩余空间: ${avail_gib}GiB（要求 ≥ ${min_gib}GiB）"
+    return 0
+  fi
+  local reason="vector 磁盘缓冲最坏 30Gi（3 sink × 10Gi，when_full=block），与 pg/ClickHouse/minio 数据同盘，不足可能连坐故障"
+  case "$mode" in
+    strict)
+      die "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB：${reason}——请更换数据路径或清理磁盘后重试"
+      ;;
+    confirm)
+      log_warn "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB（${reason}）"
+      if [ -t 0 ]; then
+        read -p "   仍要继续? (y/N): " ANS_DISK
+        [[ "$ANS_DISK" =~ ^[Yy]$ ]] || die "已取消（可指定其他数据路径后重试）"
+      else
+        log_warn "非交互环境，继续执行（自担风险）"
+      fi
+      ;;
+    warn)
+      log_warn "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB（${reason}）"
+      ;;
+  esac
 }
 
 # ---------------- compose 操作 ----------------
