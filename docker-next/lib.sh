@@ -271,7 +271,8 @@ check_disk_space() {
   local path="$1" min_gib="$2" mode="${3:-warn}" p avail_kb avail_gib
   p="$path"
   while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
-  avail_kb=$(df -k "$p" 2>/dev/null | awk 'NR==2{print $4}')
+  # -P：POSIX 单行输出——GNU df 对长设备名（LVM /dev/mapper/*）会折行，NR==2 会取到 Use%
+  avail_kb=$(df -kP "$p" 2>/dev/null | awk 'NR==2{print $4}')
   if [ -z "$avail_kb" ]; then
     log_warn "无法检测磁盘剩余空间（df 无输出），跳过检查"
     return 0
@@ -425,8 +426,8 @@ wait_services_healthy() {
         run_state=${info%% *}
         status=${info##* }
         case "$run_state" in
-          # 容器已退出 / 崩溃重启 / 已被移除：健康检查不会再有结果，立即失败不空等
-          exited|dead|restarting|"") break ;;
+          # 容器从未启动(created) / 已退出 / 崩溃重启 / 已被移除：健康检查不会再有结果，立即失败不空等
+          created|exited|dead|restarting|"") break ;;
         esac
         [ "$status" = "healthy" ] && break
         [ "$status" = "none" ] && break
@@ -434,8 +435,8 @@ wait_services_healthy() {
         i=$((i + 2))
       done
       case "$run_state" in
-        exited|dead|restarting)
-          echo " ❌ 容器未运行（State.Status=${run_state}，启动失败或崩溃重启）"
+        created|exited|dead|restarting)
+          echo " ❌ 容器未运行（State.Status=${run_state}，未启动/启动失败或崩溃重启）"
           failed="$failed $name"
           ;;
         "")

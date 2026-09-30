@@ -51,7 +51,7 @@ fi
 
 # ---------------- 2. 运行目录完整性 ----------------
 echo "${bold}----- 2. 运行目录 -----${reset}"
-for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/vector/vector.yaml"; do
+for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml"; do
   if [ -e "${TARGET_DIR}/${f}" ]; then
     pass_ "${f} 存在"
   else
@@ -155,7 +155,8 @@ case "$DATA_PATH_V" in
 esac
 p="$CHECK_PATH"
 while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
-avail_kb=$(df -k "$p" 2>/dev/null | awk 'NR==2{print $4}')
+# -P：POSIX 单行输出——GNU df 对长设备名（LVM /dev/mapper/*）会折行，NR==2 会取到 Use%
+avail_kb=$(df -kP "$p" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "$avail_kb" ]; then
   avail_gib=$((avail_kb / 1024 / 1024))
   if [ "$avail_gib" -ge 40 ]; then

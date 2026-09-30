@@ -337,7 +337,6 @@ services:
       # 避免 up -d 并行启动窗口内 next 先于依赖就绪（页面 502/超时）
       swanlab-server:
         condition: service_healthy
-        required: false
       swanlab-cloud:
         condition: service_healthy
       swanlab-house:

@@ -75,12 +75,6 @@ if [ "$LIST" -eq 1 ]; then
   exit 0
 fi
 
-if [ "$NEXT" -eq 1 ]; then
-  images=("${images_next[@]}")
-else
-  images=("${images_legacy[@]}")
-fi
-
 # 下载镜像
 for image in "${images[@]}"; do
   docker pull "$image" || exit 1

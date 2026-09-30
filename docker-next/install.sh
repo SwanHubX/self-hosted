@@ -47,8 +47,10 @@ SOCKET_PATH="${DOCKER_SOCKET_PATH}"
 require_project_name_free "${RUN_DIR}"
 
 # ---- 2. 运行目录 ----
-if [ -e "${RUN_DIR}/.env" ]; then
-  die "${RUN_DIR}/.env 已存在——似乎安装过？请使用 upgrade.sh 升级，或指定其他运行目录"
+# 拦 .env 与 compose 残迹：.env 被删但 data/ 残留的半状态下重装会生成新随机密码，
+# 已初始化的数据目录不认新密码（pg/CH/minio 全部认证失败，且容器健康检查照常通过）
+if [ -e "${RUN_DIR}/.env" ] || [ -e "${RUN_DIR}/docker-compose.yaml" ]; then
+  die "${RUN_DIR} 已有部署痕迹（.env / docker-compose.yaml 存在）——似乎安装过？请使用 upgrade.sh 升级，或指定其他运行目录"
 fi
 mkdir -p "${RUN_DIR}"
 

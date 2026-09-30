@@ -91,10 +91,10 @@ TARGET_VERSION=$(env_get SWANLAB_VERSION "${SCRIPT_DIR}/.env.example")
 [ -n "$TARGET_VERSION" ] || die "模板 .env.example 缺少 SWANLAB_VERSION"
 
 # ---------------- 2. 旧栈运行状态（排空与 pg_dump 依赖） ----------------
-for c in swanlab-postgres swanlab-clickhouse swanlab-fluentbit swanlab-house swanlab-server; do
+for c in swanlab-postgres swanlab-redis swanlab-clickhouse swanlab-minio swanlab-fluentbit swanlab-house swanlab-server; do
   running=$(docker ps --filter "name=^/${c}$" --format '{{.Names}}' 2>/dev/null)
   [ "$running" = "$c" ] \
-    || die "旧栈容器 ${c} 未在运行——迁移要求旧栈处于运行状态（pg_dump 与排空判定依赖）；请先在 ${LEGACY_DIR} 执行 docker compose up -d 后重试"
+    || die "旧栈容器 ${c} 未在运行——迁移要求旧栈完整运行（数据层四件套 + 摄入链路）；请先在 ${LEGACY_DIR} 执行 docker compose up -d 后重试"
 done
 
 # ---------------- 3. 项目一致性（项目名 swanlab 由新栈原地接管） ----------------
@@ -156,7 +156,8 @@ fi
 # ---------------- 7. 配置快照 + pg_dump 兜底 ----------------
 BACKUP_DIR="${LEGACY_DIR}/backups/pre-migrate-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-cp "$LEGACY_COMPOSE" "$LEGACY_ENV" "$BACKUP_DIR/"
+cp "$LEGACY_COMPOSE" "$LEGACY_ENV" "$BACKUP_DIR/" \
+  || die "配置快照失败（${BACKUP_DIR}）——旧栈未做任何变更"
 {
   echo "date=$(date '+%Y-%m-%dT%H:%M:%S%z')"
   echo "from=legacy-fluentbit v${LEGACY_VERSION:-unknown}"

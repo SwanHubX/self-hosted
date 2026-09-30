@@ -35,9 +35,6 @@ ENV_FILE="${TARGET_DIR}/.env"
 { [ -f "$ENV_FILE" ] && [ -f "${TARGET_DIR}/docker-compose.yaml" ]; } \
   || die "${TARGET_DIR} 不是已安装的运行目录（缺少 .env / docker-compose.yaml），请先运行 install.sh"
 
-require_docker
-require_compose_v224
-
 PROFILES=$(env_get COMPOSE_PROFILES "$ENV_FILE")
 has_profile() {
   case ",${PROFILES}," in *",$1,"*) return 0 ;; esac
@@ -73,6 +70,10 @@ if [ ! -t 0 ]; then
   die "configure.sh 需要交互终端（非交互环境请直接编辑 ${ENV_FILE} 后 docker compose up -d）"
 fi
 
+# 变更操作需要 docker；--status 只读路径已在上方退出，不受 daemon 状态门控
+require_docker
+require_compose_v224
+
 # 变更前备份 .env（此后 env_set 直接修改原文件）
 BACKUP_DIR="${TARGET_DIR}/backups/pre-configure-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
@@ -80,7 +81,7 @@ cp "$ENV_FILE" "$BACKUP_DIR/.env"
 
 # ---------------- 逐项切换 ----------------
 read -p "是否重新配置数据层? (y/N): " ANS_RECONFIG
-[[ "$ANS_RECONFIG" =~ ^[Yy]$ ]] || { echo "未做任何变更"; exit 0; }
+[[ "$ANS_RECONFIG" =~ ^[Yy]$ ]] || { echo "未做任何变更"; rm -rf "$BACKUP_DIR"; exit 0; }
 
 # ---- PostgreSQL ----
 echo
@@ -160,10 +161,13 @@ case "$ANS" in
     if [ "$ANS" = "1" ]; then
       PROFILES=$(profile_add "$PROFILES" clickhouse)
       [ -z "$(env_get CLICKHOUSE_PASSWORD "$ENV_FILE")" ] && { env_set CLICKHOUSE_PASSWORD "$(random_password)" "$ENV_FILE"; mark_change "CLICKHOUSE_PASSWORD"; }
-      # 清空外接指向，避免 validate_env 的"本机部署但 HOST 已填写"告警
+      # 清空外接指向（含库名与端口），口径回本机默认；避免 validate_env 的"本机部署但 HOST 已填写"告警
       env_set CLICKHOUSE_HOST "" "$ENV_FILE"
       env_set CLICKHOUSE_USER "" "$ENV_FILE"
-      mark_change "CLICKHOUSE_HOST CLICKHOUSE_USER"
+      env_set CLICKHOUSE_DATABASE "" "$ENV_FILE"
+      env_set CLICKHOUSE_HTTP_PORT "" "$ENV_FILE"
+      env_set CLICKHOUSE_TCP_PORT "" "$ENV_FILE"
+      mark_change "CLICKHOUSE_HOST CLICKHOUSE_USER CLICKHOUSE_DATABASE CLICKHOUSE_HTTP_PORT CLICKHOUSE_TCP_PORT"
       echo "   ✅ ClickHouse → 本机容器"
     fi
     ;;
@@ -211,6 +215,8 @@ case "$ANS" in
       env_set S3_SECRET_KEY "" "$ENV_FILE"
       env_set S3_PUBLIC_PORT "9000" "$ENV_FILE";  env_set S3_PRIVATE_PORT "9000" "$ENV_FILE"
       env_set S3_PUBLIC_USE_SSL "false" "$ENV_FILE"; env_set S3_PRIVATE_USE_SSL "false" "$ENV_FILE"
+      env_set S3_PUBLIC_PATH_STYLE "true" "$ENV_FILE"; env_set S3_PRIVATE_PATH_STYLE "true" "$ENV_FILE"
+      env_set S3_PUBLIC_BUCKET "swanlab-public" "$ENV_FILE"; env_set S3_PRIVATE_BUCKET "swanlab-private" "$ENV_FILE"
       mark_change "SS_STORAGE_TYPE S3_*"
       echo "   ✅ S3 → 本机 MinIO（桶由 minio-init 幂等创建）"
     fi

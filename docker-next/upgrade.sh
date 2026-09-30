@@ -42,7 +42,6 @@ done
 
 echo "${bold}===== SwanLab Self-Hosted（docker-next）升级 =====${reset}"
 
-require_docker
 require_compose_v224
 
 # ---------------- --rollback 分支 ----------------
@@ -69,6 +68,7 @@ if [ -n "$ROLLBACK_DIR" ]; then
   validate_env "${TARGET_DIR}/.env" || die "回滚的 .env 校验失败（当前状态已备份于 ${PRE_ROLLBACK}）"
   render_check "${TARGET_DIR}"
 
+  require_docker   # 回滚需重建容器（--check 只读路径不经过此门）
   log_info "以回滚配置重建服务..."
   (cd "${TARGET_DIR}" && docker compose up -d) || die "回滚 up -d 失败（当前状态已备份于 ${PRE_ROLLBACK}）"
   wait_services_healthy "${TARGET_DIR}" || exit 1
@@ -124,6 +124,9 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
   exit 0
 fi
 
+# 正式升级需要 daemon；--check 只读路径已在上方退出（校验/渲染均不依赖 daemon）
+require_docker
+
 # ---------------- 确认 ----------------
 if [ "$ASSUME_YES" -eq 0 ]; then
   read -p "升级将拉取镜像并重启服务（${CURRENT_VERSION:-?} → ${TARGET_VERSION}），继续? (y/N): " CONFIRM
@@ -133,8 +136,12 @@ fi
 # ---------------- 1. 快照当前部署 ----------------
 BACKUP_DIR="${TARGET_DIR}/backups/pre-upgrade-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-cp "${TARGET_DIR}/docker-compose.yaml" "${TARGET_DIR}/.env" "$BACKUP_DIR/"
-cp -r "${TARGET_DIR}/config" "$BACKUP_DIR/"
+# 绝对化：下方 pg_dump 在 (cd TARGET_DIR) 子 shell 内做重定向，BACKUP_DIR 为相对路径时会按新 CWD 解析错位
+BACKUP_DIR=$(cd "$BACKUP_DIR" && pwd)
+cp "${TARGET_DIR}/docker-compose.yaml" "${TARGET_DIR}/.env" "$BACKUP_DIR/" \
+  || die "快照失败（compose/.env → ${BACKUP_DIR}）"
+cp -r "${TARGET_DIR}/config" "$BACKUP_DIR/" \
+  || die "config 快照失败——回滚将缺少 config 还原（${BACKUP_DIR}）"
 {
   echo "date=$(date '+%Y-%m-%dT%H:%M:%S%z')"
   echo "from_version=${CURRENT_VERSION}"
