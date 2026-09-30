@@ -309,6 +309,60 @@ render_check() {
   log_ok "compose 渲染通过"
 }
 
+# compose 当前实际启用（按 .env 的 COMPOSE_PROFILES 过滤）的镜像清单，去重
+# compose >= 2.20 提供 config --images；旧版本无此 flag 时回退解析 config 的 image 字段
+# 解析失败/为空时返回 1——调用方须与"无需镜像"区分
+compose_required_images() {
+  local run_dir="$1" out
+  out=$( (cd "$run_dir" && docker compose config --images 2>/dev/null) )
+  if [ -z "$out" ]; then
+    out=$( (cd "$run_dir" && docker compose config 2>/dev/null) \
+      | awk '/^[[:space:]]+image: /{print $2}' | tr -d '"' )
+  fi
+  [ -n "$out" ] || return 1
+  printf '%s\n' "$out" | sort -u
+}
+
+# 校验 compose 所需镜像是否已全部存在于本地 Docker（离线/内网部署前置检查）
+# 齐备返回 0；缺失时打印缺失清单并返回 1
+verify_local_images() {
+  local run_dir="$1" images img missing="" count
+  images=$(compose_required_images "$run_dir") || {
+    log_err "无法解析 compose 所需镜像清单（docker compose config 失败？）"
+    return 1
+  }
+  for img in $images; do
+    docker image inspect "$img" >/dev/null 2>&1 || missing="${missing} ${img}"
+  done
+  if [ -n "$missing" ]; then
+    log_err "本地缺少以下镜像:${missing}"
+    return 1
+  fi
+  count=$(printf '%s\n' "$images" | wc -l | tr -d ' ')
+  log_ok "所需镜像均已存在于本地（${count} 个）"
+  return 0
+}
+
+# 拉取镜像，带离线降级：pull 失败时只要所需镜像已全部在本地就继续，不直接 die
+# pull_images <run_dir> <offline: 0|1>
+# 依据：离线/内网环境下 docker compose pull 即使本地已有镜像也会尝试连接 registry
+# 校验元数据，连接失败即整体退出——若因此终止，离线部署（docker load 导入镜像）无法进行
+pull_images() {
+  local run_dir="$1" offline="${2:-0}"
+  if [ "$offline" -eq 1 ]; then
+    log_info "离线模式：跳过 docker compose pull，直接校验本地镜像"
+    verify_local_images "$run_dir"
+    return $?
+  fi
+  log_info "拉取全部镜像（docker compose pull）..."
+  if (cd "$run_dir" && docker compose pull); then
+    return 0
+  fi
+  log_warn "docker compose pull 失败（离线/内网或 Registry 不可达）"
+  log_info "降级：校验 compose 所需镜像是否已在本地..."
+  verify_local_images "$run_dir"
+}
+
 # 由 .env 推导需要健康等待的服务清单（不含一次性 gateway-plugins / minio-init）
 compose_services_for_profiles() {
   local envfile="$1"
@@ -323,9 +377,11 @@ compose_services_for_profiles() {
 }
 
 # 副本感知的健康等待：逐服务枚举其全部容器，等待每一个 healthcheck 变 healthy
+# 容器退出/崩溃重启时健康探针不再推进（restart 策略下停在 State.Status=restarting），
+# 只观察 Health.Status 会盲等到 timeout（默认 300s）——须同时观察 State.Status 快速失败
 wait_services_healthy() {
   local run_dir="$1" timeout="${2:-300}"
-  local svcs failed svc ids id name status i
+  local svcs failed svc ids id name status run_state info i
   svcs=$(compose_services_for_profiles "$run_dir/.env")
   failed=""
 
@@ -339,22 +395,42 @@ wait_services_healthy() {
       name=$(docker inspect --format '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##')
       echo -n "🔍 等待 ${name} ..."
       status=""
+      run_state=""
       i=0
       while [ "$i" -lt "$timeout" ]; do
-        status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null)
+        # 一次 inspect 同时取运行态与健康态（run_state 不含空格，可安全按空格切分）
+        info=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null)
+        run_state=${info%% *}
+        status=${info##* }
+        case "$run_state" in
+          # 容器已退出 / 崩溃重启 / 已被移除：健康检查不会再有结果，立即失败不空等
+          exited|dead|restarting|"") break ;;
+        esac
         [ "$status" = "healthy" ] && break
         [ "$status" = "none" ] && break
         sleep 2
         i=$((i + 2))
       done
-      if [ "$status" = "healthy" ]; then
-        echo " ✅ healthy"
-      elif [ "$status" = "none" ]; then
-        echo " ⏭️  无健康检查，跳过"
-      else
-        echo " ❌ ${status:-timeout}"
-        failed="$failed $name"
-      fi
+      case "$run_state" in
+        exited|dead|restarting)
+          echo " ❌ 容器未运行（State.Status=${run_state}，启动失败或崩溃重启）"
+          failed="$failed $name"
+          ;;
+        "")
+          echo " ❌ 容器不存在（inspect 失败，可能已被重建/移除）"
+          failed="$failed $name"
+          ;;
+        *)
+          if [ "$status" = "healthy" ]; then
+            echo " ✅ healthy"
+          elif [ "$status" = "none" ]; then
+            echo " ⏭️  无健康检查，跳过"
+          else
+            echo " ❌ ${status:-timeout}"
+            failed="$failed $name"
+          fi
+          ;;
+      esac
     done
   done
 

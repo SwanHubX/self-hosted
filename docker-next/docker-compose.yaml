@@ -206,7 +206,9 @@ services:
       - "traefik.http.services.swanlab-server.loadbalancer.healthcheck.interval=10s"
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}
-      - DATABASE_URL_REPLICA=${DATABASE_URL_REPLICA:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}
+      # 两级回退：REPLICA 留空时沿用主库串（.env.example 语义），再兜底本机默认串。
+      # 外接 pg 且只填 DATABASE_URL 时，若直接回退本机默认串会指向未启动的 postgres 容器
+      - DATABASE_URL_REPLICA=${DATABASE_URL_REPLICA:-${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}}
       - REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
       - VERSION=${SWANLAB_VERSION}
       - SERVER_PREFIX=/api

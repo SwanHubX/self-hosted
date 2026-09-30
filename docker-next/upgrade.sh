@@ -5,6 +5,7 @@
 #   (默认)              快照 → (本机 PG 自动 pg_dump) → 铺设新模板 → 拉镜像 → up -d → 健康等待
 #   --check             只读体检：版本对比 / 磁盘 / 防呆校验 / 渲染 / 容器状态，不做任何变更
 #   --version X.Y.Z     覆盖目标版本（默认取模板 .env.example 的 SWANLAB_VERSION）
+#   --offline | -o      离线/内网：跳过 docker compose pull，仅校验所需镜像已在本地
 #   --rollback <dir>    从 backups/pre-upgrade-<ts>/ 回滚 compose / .env / config
 #                       （数据库快照按需手动导入，脚本会给出命令）
 #   --yes | -y          跳过交互确认
@@ -23,6 +24,7 @@ CHECK_ONLY=0
 ROLLBACK_DIR=""
 TARGET_VERSION=""
 ASSUME_YES=0
+OFFLINE=0
 
 POSITIONAL=()
 while [ $# -gt 0 ]; do
@@ -30,6 +32,7 @@ while [ $# -gt 0 ]; do
     --check) CHECK_ONLY=1; shift ;;
     --rollback) ROLLBACK_DIR="${2:-}"; shift 2 ;;
     --version) TARGET_VERSION="${2:-}"; shift 2 ;;
+    --offline|-o) OFFLINE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -*) die "未知选项: $1" ;;
     *) POSITIONAL+=("$1"); shift ;;
@@ -162,7 +165,10 @@ esac
 cp -f "${SCRIPT_DIR}/docker-compose.yaml" "${TARGET_DIR}/"
 rm -rf "${TARGET_DIR}/config"
 cp -r "${SCRIPT_DIR}/config" "${TARGET_DIR}/config"
-sed -i.bak "s/^SWANLAB_VERSION=.*/SWANLAB_VERSION=${TARGET_VERSION}/" "${TARGET_DIR}/.env" && rm -f "${TARGET_DIR}/.env.bak"
+# 用 env_set（原地截断写回）而非 sed -i：复用 lib 的写入路径统一处理去重与权限，
+# 且避免把 TARGET_VERSION 拼进 sed 表达式——--version 校验为宽松通配，值含 / 或 &
+# 会破坏替换（sed 非 0 退出后 && 跳过清理，脚本仍继续用旧版本号拉镜像）
+env_set SWANLAB_VERSION "$TARGET_VERSION" "${TARGET_DIR}/.env"
 
 # 模板新增变量提示（当前 .env 缺失的键 → compose 用内嵌默认值，提示用户可手动补充）
 MISSING_KEYS=""
@@ -178,9 +184,9 @@ render_check "${TARGET_DIR}"
 
 # 先铺设新模板再 pull：此时 TARGET_DIR 内已是目标版本 compose/.env，
 # 显式 pull 拉到的才是新镜像（否则拉旧 tag，新镜像反由 up -d 隐式拉取）
-log_info "拉取新镜像（docker compose pull）..."
-(cd "${TARGET_DIR}" && docker compose pull) \
-  || die "镜像拉取失败（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先用 scripts/pull-images.sh --next 导入后重试）"
+# 离线/内网（--offline，或 pull 失败但所需镜像已在本地）自动降级为本地镜像校验
+pull_images "${TARGET_DIR}" "${OFFLINE}" \
+  || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --next --save 打包，在目标机 docker load 后加 --offline 重试）"
 
 # ---------------- 5. 重建 ----------------
 # server 启动命令自带 prisma migrate deploy（chart 同款），重建即完成升级迁移

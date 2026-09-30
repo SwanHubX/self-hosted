@@ -1,11 +1,12 @@
 #!/bin/bash
 # SwanLab Self-Hosted（docker-next 架构）全新安装脚本
 #
-# 用法: ./install.sh [运行目录(默认 ./swanlab)] [-d 数据路径] [-p 暴露端口] [-s 跳过交互]
+# 用法: ./install.sh [运行目录(默认 ./swanlab)] [-d 数据路径] [-p 暴露端口] [-s 跳过交互] [-o|--offline]
 # 示例:
 #   ./install.sh                          # 交互式安装到 ./swanlab
 #   ./install.sh -s                       # 免交互：本机四件套 + 默认副本数（冒烟/测试）
 #   ./install.sh /opt/swanlab -d /data -p 80
+#   ./install.sh /opt/swanlab -o          # 离线/内网：跳过 pull，校验本地镜像齐备后继续
 #
 # 流程（plan §10.1）：环境检查 → 运行目录 → 交互收集（路径/端口/外接选择）
 #   → 生成密码与 .env → 拷贝 compose 与 config → 防呆校验 + 渲染
@@ -21,24 +22,17 @@ RUN_DIR="swanlab"
 DATA_PATH="./data"
 EXPOSE_PORT="8000"
 SKIP_INPUT=0
+OFFLINE=0
 
-# 第一个位置参数 = 运行目录，其余走 getopts
-POSITIONAL=()
+# 单循环解析：选项与位置参数可任意顺序（--offline 也能出现在其他选项之后）
 while [ $# -gt 0 ]; do
   case "$1" in
-    -*) break ;;
-    *) POSITIONAL+=("$1"); shift ;;
-  esac
-done
-[ ${#POSITIONAL[@]} -gt 0 ] && RUN_DIR="${POSITIONAL[0]}"
-
-while getopts ":d:p:s" opt; do
-  case ${opt} in
-    d) DATA_PATH="$OPTARG" ;;
-    p) EXPOSE_PORT="$OPTARG" ;;
-    s) SKIP_INPUT=1 ;;
-    \?) die "无效选项: -$OPTARG" ;;
-    :) die "选项 -$OPTARG 需要参数" ;;
+    -d) [ -n "${2:-}" ] || die "选项 -d 需要参数"; DATA_PATH="$2"; shift 2 ;;
+    -p) [ -n "${2:-}" ] || die "选项 -p 需要参数"; EXPOSE_PORT="$2"; shift 2 ;;
+    -s) SKIP_INPUT=1; shift ;;
+    -o|--offline) OFFLINE=1; shift ;;
+    -*) die "无效选项: $1" ;;
+    *)  RUN_DIR="$1"; shift ;;
   esac
 done
 
@@ -245,9 +239,9 @@ render_check "${RUN_DIR}"
 
 # ---- 8. 预拉取镜像 ----
 # 显式 pull 走带进度条的输出；避免后续 compose run / up 隐式拉取时输出无进度条的重复行
-log_info "拉取全部镜像（docker compose pull）..."
-(cd "${RUN_DIR}" && docker compose pull) \
-  || die "镜像拉取失败（离线环境请先 scripts/pull-images.sh --next 导入后重试）"
+# 离线/内网（-o/--offline，或 pull 失败但镜像已全部在本地）自动降级为本地镜像校验
+pull_images "${RUN_DIR}" "${OFFLINE}" \
+  || die "镜像不可用（离线环境请先 scripts/pull-images.sh --next --save 打包，在目标机 docker load 后加 -o 重试）"
 
 # ---- 9. 启动 + 健康等待（server 启动命令自带 prisma migrate，advisory lock 串行化）----
 log_info "启动全部服务（docker compose up -d）..."
