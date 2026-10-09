@@ -1,17 +1,15 @@
 #!/bin/bash
-# SwanLab Self-Hosted（docker-next 架构）全新安装脚本
+# SwanLab Self-Hosted（docker-v2）安装脚本
 #
 # 用法: ./install.sh [运行目录(默认 ./swanlab)] [-d 数据路径] [-p 暴露端口] [-s 跳过交互] [-o|--offline]
 # 示例:
 #   ./install.sh                          # 交互式安装到 ./swanlab
-#   ./install.sh -s                       # 免交互：本机四件套 + 默认副本数（冒烟/测试）
+#   ./install.sh -s                       # 免交互模式安装
 #   ./install.sh /opt/swanlab -d /data -p 80
-#   ./install.sh /opt/swanlab -o          # 离线/内网：跳过 pull，校验本地镜像齐备后继续
+#   ./install.sh /opt/swanlab -o          # 离线模式安装
 #
-# 流程（plan §10.1）：环境检查 → 运行目录 → 交互收集（路径/端口/外接选择）
-#   → 生成密码与 .env → 拷贝 compose 与 config → 防呆校验 + 渲染
-#   → 预拉取镜像 → up -d → 逐服务健康等待
-# 数据库迁移由 swanlab-server 启动命令自带（chart 同款：prisma migrate deploy + advisory lock）
+# 流程：环境检查 → 目录与配置收集 → 生成密码与 .env → 复制配置模板 → 配置校验 → 拉取镜像 → 启动服务与健康检查
+# 数据库迁移由 server-migrate 一次性服务在业务副本启动前执行
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -24,7 +22,7 @@ EXPOSE_PORT="8000"
 SKIP_INPUT=0
 OFFLINE=0
 
-# 单循环解析：选项与位置参数可任意顺序（--offline 也能出现在其他选项之后）
+# 解析命令行参数
 while [ $# -gt 0 ]; do
   case "$1" in
     -d) [ -n "${2:-}" ] || die "选项 -d 需要参数"; DATA_PATH="$2"; shift 2 ;;
@@ -36,19 +34,18 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-echo "${bold}===== SwanLab Self-Hosted（docker-next）安装 =====${reset}"
+echo "${bold}===== SwanLab Self-Hosted（docker-v2）安装 =====${reset}"
 
 # ---- 1. 环境检查 ----
 require_docker
 require_compose_v224
 resolve_docker_socket_path
 SOCKET_PATH="${DOCKER_SOCKET_PATH}"
-# 项目名 swanlab 被其他目录的部署占用（如旧版 docker 版）则拒绝安装，引导走 migrate.sh
+# 检查项目名占用情况
 require_project_name_free "${RUN_DIR}"
 
 # ---- 2. 运行目录 ----
-# 拦 .env 与 compose 残迹：.env 被删但 data/ 残留的半状态下重装会生成新随机密码，
-# 已初始化的数据目录不认新密码（pg/CH/minio 全部认证失败，且容器健康检查照常通过）
+# 检查目录是否已存在部署文件
 if [ -e "${RUN_DIR}/.env" ] || [ -e "${RUN_DIR}/docker-compose.yaml" ]; then
   die "${RUN_DIR} 已有部署痕迹（.env / docker-compose.yaml 存在）——似乎安装过？请使用 upgrade.sh 升级，或指定其他运行目录"
 fi
@@ -81,25 +78,24 @@ else
 fi
 
 # ---- 3.5 磁盘预检 ----
-# vector 三个 sink 各 10Gi disk buffer（when_full=block）最坏 30Gi，与 pg/CH/minio 数据同盘；
-# 阈值 40Gi 对齐 chart vector persistence.storageSize（≥3×buffer）
+# 检查数据目录所在磁盘剩余空间（阈值 40GiB）
 case "$DATA_PATH" in
   /*) DISK_CHECK_PATH="$DATA_PATH" ;;
   *)  DISK_CHECK_PATH="${RUN_DIR}/${DATA_PATH}" ;;
 esac
 if [ "$SKIP_INPUT" -eq 1 ]; then
-  check_disk_space "$DISK_CHECK_PATH" 40 warn          # 冒烟/测试环境不强制
+  check_disk_space "$DISK_CHECK_PATH" 40 warn
 else
-  check_disk_space "$DISK_CHECK_PATH" 40 confirm       # 真实部署确认后可继续
+  check_disk_space "$DISK_CHECK_PATH" 40 confirm
 fi
 
-# 外接参数收集（免交互模式下全部留空 = 本机默认）
+# 外接参数收集
 DATABASE_URL=""; DATABASE_URL_REPLICA=""; REDIS_URL=""
 CH_HOST=""; CH_HTTP_PORT="8123"; CH_TCP_PORT="9000"; CH_DATABASE="app"; CH_USER=""
-# S3：本机模式保持 MinIO 口径（false/9000）；外接分支按交互结果覆盖
+# S3 连接参数配置
 S3_PUBLIC_ENDPOINT=""; S3_PRIVATE_ENDPOINT=""; S3_ACCESS_KEY=""; S3_SECRET_KEY=""
 S3_REGION=""; S3_PUBLIC_DOMAIN=""; S3_USE_SSL="false"; S3_PORT="9000"
-# 外接默认 virtual-hosted style（path-style=false，云 S3 口径）；本机 MinIO 保持 true
+# S3 path-style 配置
 S3_PATH_STYLE="true"
 
 if [ "$PG_EXTERNAL" -eq 1 ] && [ "$SKIP_INPUT" -eq 0 ]; then
@@ -133,17 +129,17 @@ if [ "$S3_EXTERNAL" -eq 1 ] && [ "$SKIP_INPUT" -eq 0 ]; then
   [ -z "$S3_ACCESS_KEY" ] && die "外接 S3 必须提供 AccessKey"
   read -p "   SecretKey: " S3_SECRET_KEY
   [ -z "$S3_SECRET_KEY" ] && die "外接 S3 必须提供 SecretKey"
-  # 以下字段对齐 chart integrations.s3 的 required 语义（_helpers.tpl），缺失即坏配置
+  # 外接 S3 必填字段校验
   read -p "   Region (如 cn-north-1 / us-east-1): " S3_REGION
-  [ -z "$S3_REGION" ] && die "外接 S3 必须提供 region（chart 语义：required）"
+  [ -z "$S3_REGION" ] && die "外接 S3 必须提供 region"
   read -p "   公开桶访问域名 S3_PUBLIC_DOMAIN (如 https://cdn.example.com): " S3_PUBLIC_DOMAIN
-  [ -z "$S3_PUBLIC_DOMAIN" ] && die "外接 S3 必须提供公开桶访问域名（chart 语义：required）"
+  [ -z "$S3_PUBLIC_DOMAIN" ] && die "外接 S3 必须提供公开桶访问域名"
   read -p "   启用 SSL? (Y/n): " ANS_SSL
   if [ -n "$ANS_SSL" ] && [[ ! "$ANS_SSL" =~ ^[Yy]$ ]]; then S3_USE_SSL="false"; else S3_USE_SSL="true"; fi
   S3_DEFAULT_PORT=443; [ "$S3_USE_SSL" = "false" ] && S3_DEFAULT_PORT=80
   read -p "   端口 [${S3_DEFAULT_PORT}]: " S3_PORT
   [ -z "$S3_PORT" ] && S3_PORT="$S3_DEFAULT_PORT"
-  # 外接默认 vhost style；MinIO 兼容存储装完后改 .env 的 S3_*_PATH_STYLE=true
+  # 外接默认 vhost 模式，MinIO 兼容存储可配置 path-style=true
   S3_PATH_STYLE="false"
   log_warn "外接 S3 需预先创建桶：swanlab-public（公共读）/ swanlab-private（私有）；默认 virtual-hosted style（path-style=false），MinIO 兼容存储请装后改 .env 的 S3_*_PATH_STYLE=true"
 fi
@@ -163,7 +159,7 @@ POSTGRES_PASSWORD=""; CLICKHOUSE_PASSWORD=""; MINIO_ROOT_PASSWORD=""
 [ "$PG_EXTERNAL" -eq 0 ] && POSTGRES_PASSWORD=$(random_password)
 [ "$CH_EXTERNAL" -eq 0 ] && CLICKHOUSE_PASSWORD=$(random_password)
 [ "$S3_EXTERNAL" -eq 0 ] && MINIO_ROOT_PASSWORD=$(random_password)
-# 外接时 CLICKHOUSE_PASSWORD / 用户凭据共用同一变量位（vector 与 house 读取 CLICKHOUSE_PASSWORD）
+# 配置 ClickHouse 凭据
 if [ "$CH_EXTERNAL" -eq 1 ] && [ "$SKIP_INPUT" -eq 0 ]; then
   read -p "   密码 CLICKHOUSE_PASSWORD: " CLICKHOUSE_PASSWORD
   [ -z "$CLICKHOUSE_PASSWORD" ] && die "外接 clickhouse 必须提供密码"
@@ -175,7 +171,7 @@ SWANLAB_VERSION=$(env_get SWANLAB_VERSION "${SCRIPT_DIR}/.env.example")
 # ---- 5. 生成 .env ----
 log_info "生成 ${RUN_DIR}/.env（权限 600）"
 cat > "${RUN_DIR}/.env" <<EOF
-# SwanLab Self-Hosted（docker-next）配置 — 由 install.sh 生成于 $(date '+%Y-%m-%d %H:%M:%S')
+# SwanLab Self-Hosted（docker-v2）配置 — 由 install.sh 生成于 $(date '+%Y-%m-%d %H:%M:%S')
 # 修改后执行 docker compose up -d 生效；升级请使用 upgrade.sh
 
 # ---- 公共 ----
@@ -188,7 +184,7 @@ PUBLIC_HOST=
 MAX_METRICS_PER_COPY=20000
 COMPOSE_PROFILES=${PROFILE_LIST}
 
-# ---- 业务副本数（默认对齐 k8s chart；单机内存紧张可降为 1）----
+# ---- 业务副本数（单机资源紧张可设为 1）----
 SERVER_REPLICAS=2
 AUTH_REPLICAS=2
 HOUSE_REPLICAS=2
@@ -240,14 +236,12 @@ log_ok "已铺设 docker-compose.yaml 与 config/ 到 ${RUN_DIR}"
 validate_env "${RUN_DIR}/.env" || die "防呆校验未通过，请修正 ${RUN_DIR}/.env 后重试"
 render_check "${RUN_DIR}"
 
-# ---- 8. 预拉取镜像 ----
-# 显式 pull 走带进度条的输出；避免后续 compose run / up 隐式拉取时输出无进度条的重复行
-# 离线/内网（-o/--offline，或 pull 失败但镜像已全部在本地）自动降级为本地镜像校验
+# ---- 8. 拉取镜像 ----
 pull_images "${RUN_DIR}" "${OFFLINE}" \
-  || die "镜像不可用（离线环境请先 scripts/pull-images.sh --next --save 打包，在目标机 docker load 后加 -o 重试）"
+  || die "镜像不可用（离线环境请先 scripts/pull-images.sh --v2 --save 打包，在目标机 docker load 后加 -o 重试）"
 
-# ---- 9. 启动 + 健康等待（server 启动命令自带 prisma migrate，advisory lock 串行化）----
-log_info "启动全部服务（docker compose up -d）..."
+# ---- 9. 启动服务与健康检查 ----
+log_info "启动服务（docker compose up -d）..."
 (cd "${RUN_DIR}" && docker compose up -d) || die "docker compose up -d 失败"
 wait_services_healthy "${RUN_DIR}" || exit 1
 
@@ -261,7 +255,7 @@ cat <<'BANNER'
   ____) \ V  V / (_| | | | | |___| (_| | |_) |
  |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/
 BANNER
-echo " Self-Hosted Docker-Next v${SWANLAB_VERSION} - @SwanLab"
+echo " Self-Hosted Docker-V2 v${SWANLAB_VERSION} - @SwanLab"
 echo "${reset}"
 print_access_urls "$EXPOSE_PORT"
 echo "📁 运行目录: ${RUN_DIR}（配置 ${RUN_DIR}/.env，数据 ${DATA_PATH}）"
@@ -269,5 +263,5 @@ echo "🔧 常用操作:"
 echo "   - 调整副本数: 编辑 ${RUN_DIR}/.env 的 *_REPLICAS 后 docker compose up -d"
 echo "   - 升级版本:   ${SCRIPT_DIR}/upgrade.sh ${RUN_DIR}"
 echo "   - 日常巡检:   ${SCRIPT_DIR}/check.sh ${RUN_DIR}（docker compose ps && docker compose logs -f <service>）"
-echo "   - 存量迁移:   ${SCRIPT_DIR}/migrate.sh <旧版 docker 运行目录>（旧版单实例架构 → docker-next）"
-echo "⚠️  禁止 --scale vector：disk buffer 为单写者 WAL，多副本共享同一数据目录必然损坏（check.sh 会拦）"
+echo "   - 存量迁移:   ${SCRIPT_DIR}/migrate.sh <旧版 docker 运行目录>（旧版单实例架构 → docker-v2）"
+echo "⚠️  注意：vector 为单实例模式，不支持扩容多副本"

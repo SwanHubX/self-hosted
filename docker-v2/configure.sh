@@ -1,15 +1,15 @@
 #!/bin/bash
-# SwanLab Self-Hosted（docker-next 架构）内外接配置切换脚本
+# SwanLab Self-Hosted（docker-v2 架构）内外接配置切换脚本
 #
 # 用法: ./configure.sh [运行目录(默认 ./swanlab)] [--status]
 #   --status    只读显示当前数据层形态与外接配置，不做任何变更
 #
-# 数据层逐项切换 本机容器 ↔ 外部实例（plan §10.3）：
+# 数据层逐项切换 本机容器 ↔ 外部实例：
 #   交互更新 .env → 备份 → 防呆校验 → 渲染 → 按需 up -d 生效
 #
-# ⚠️ 切换只改连接指向，不迁移数据：
-#   - 外接 → 本机：连接的是全新空库/空桶（外部数据不会被导回）
-#   - 本机 → 外接：外部库/桶需预先准备（表结构由 server 启动迁移创建，桶需手动建）
+# 切换修改连接指向，不迁移数据：
+#   - 外接 → 本机：连接本机实例，外部数据不迁移
+#   - 本机 → 外接：外部实例需预先就绪
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
 done
 [ ${#POSITIONAL[@]} -gt 0 ] && TARGET_DIR="${POSITIONAL[0]}"
 
-echo "${bold}===== SwanLab Self-Hosted（docker-next）配置切换 =====${reset}"
+echo "${bold}===== SwanLab Self-Hosted（docker-v2）配置切换 =====${reset}"
 
 ENV_FILE="${TARGET_DIR}/.env"
 { [ -f "$ENV_FILE" ] && [ -f "${TARGET_DIR}/docker-compose.yaml" ]; } \
@@ -62,19 +62,19 @@ echo "  COMPOSE_PROFILES=${PROFILES:-<空>}"
 
 if [ "$STATUS_ONLY" -eq 1 ]; then
   echo
-  echo "（--status 只读模式，未做任何变更；外接连接串等敏感值请直接查看 ${ENV_FILE}）"
+  echo "（--status 只读模式，未做变更；连接串等敏感值请查看 ${ENV_FILE}）"
   exit 0
 fi
 
 if [ ! -t 0 ]; then
-  die "configure.sh 需要交互终端（非交互环境请直接编辑 ${ENV_FILE} 后 docker compose up -d）"
+  die "configure.sh 需要交互终端（非交互环境请编辑 ${ENV_FILE} 后执行 docker compose up -d）"
 fi
 
 # 变更操作需要 docker；--status 只读路径已在上方退出，不受 daemon 状态门控
 require_docker
 require_compose_v224
 
-# 变更前备份 .env（此后 env_set 直接修改原文件）
+# 变更前备份 .env 文件
 BACKUP_DIR="${TARGET_DIR}/backups/pre-configure-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 cp "$ENV_FILE" "$BACKUP_DIR/.env"
@@ -161,7 +161,7 @@ case "$ANS" in
     if [ "$ANS" = "1" ]; then
       PROFILES=$(profile_add "$PROFILES" clickhouse)
       [ -z "$(env_get CLICKHOUSE_PASSWORD "$ENV_FILE")" ] && { env_set CLICKHOUSE_PASSWORD "$(random_password)" "$ENV_FILE"; mark_change "CLICKHOUSE_PASSWORD"; }
-      # 清空外接指向（含库名与端口），口径回本机默认；避免 validate_env 的"本机部署但 HOST 已填写"告警
+      # 清空外接指向，恢复本机默认配置
       env_set CLICKHOUSE_HOST "" "$ENV_FILE"
       env_set CLICKHOUSE_USER "" "$ENV_FILE"
       env_set CLICKHOUSE_DATABASE "" "$ENV_FILE"
@@ -208,7 +208,7 @@ case "$ANS" in
       PROFILES=$(profile_add "$PROFILES" minio)
       [ -z "$(env_get MINIO_ROOT_PASSWORD "$ENV_FILE")" ] && { env_set MINIO_ROOT_PASSWORD "$(random_password)" "$ENV_FILE"; mark_change "MINIO_ROOT_PASSWORD"; }
       env_set SS_STORAGE_TYPE "local" "$ENV_FILE"
-      # 外接字段清空、口径回本机默认
+      # 清空外接配置，恢复本机默认配置
       env_set S3_PUBLIC_ENDPOINT "" "$ENV_FILE";  env_set S3_PRIVATE_ENDPOINT "" "$ENV_FILE"
       env_set S3_PUBLIC_REGION "" "$ENV_FILE";    env_set S3_PRIVATE_REGION "" "$ENV_FILE"
       env_set S3_PUBLIC_DOMAIN "" "$ENV_FILE";    env_set S3_ACCESS_KEY "" "$ENV_FILE"
@@ -233,11 +233,11 @@ case "$ANS" in
     [ -z "$V_AK" ] && die "外接 S3 必须提供 AccessKey"
     read -p "   SecretKey: " V_SK
     [ -z "$V_SK" ] && die "外接 S3 必须提供 SecretKey"
-    # required 字段对齐 chart integrations.s3（_helpers.tpl）：region / domain 缺失即坏配置
+    # S3 参数配置
     read -p "   Region (如 cn-north-1 / us-east-1): " V_REGION
-    [ -z "$V_REGION" ] && die "外接 S3 必须提供 region（chart 语义：required）"
+    [ -z "$V_REGION" ] && die "外接 S3 必须提供 region"
     read -p "   公开桶访问域名 S3_PUBLIC_DOMAIN (如 https://cdn.example.com): " V_DOMAIN
-    [ -z "$V_DOMAIN" ] && die "外接 S3 必须提供公开桶访问域名（chart 语义：required）"
+    [ -z "$V_DOMAIN" ] && die "外接 S3 必须提供公开桶访问域名"
     read -p "   启用 SSL? (Y/n): " ANS_SSL
     if [ -n "$ANS_SSL" ] && [[ ! "$ANS_SSL" =~ ^[Yy]$ ]]; then V_SSL="false"; else V_SSL="true"; fi
     V_DPORT=443; [ "$V_SSL" = "false" ] && V_DPORT=80
@@ -256,11 +256,11 @@ case "$ANS" in
     env_set S3_PRIVATE_PORT "$V_PORT" "$ENV_FILE"
     env_set S3_PUBLIC_USE_SSL "$V_SSL" "$ENV_FILE"
     env_set S3_PRIVATE_USE_SSL "$V_SSL" "$ENV_FILE"
-    # 外接默认 virtual-hosted style（云 S3 口径）；MinIO 兼容存储用户装后手动改回 true
+    # 外接默认 virtual-hosted 路径风格
     env_set S3_PUBLIC_PATH_STYLE "false" "$ENV_FILE"
     env_set S3_PRIVATE_PATH_STYLE "false" "$ENV_FILE"
     mark_change "SS_STORAGE_TYPE S3_*"
-    echo "   ✅ S3 → 外部对象存储（path-style=false/vhost；MinIO 兼容存储请改 .env 的 S3_*_PATH_STYLE=true）"
+    echo "   ✅ S3 → 外部对象存储（path-style=false；MinIO 兼容存储可配置 S3_*_PATH_STYLE=true）"
     ;;
 esac
 
@@ -285,12 +285,12 @@ render_check "$TARGET_DIR"
 
 echo
 log_warn "注意：切换只改连接指向，不迁移数据（外接→本机 = 空库/空桶起步）"
-read -p "立即 docker compose up -d 生效? (Y/n): " ANS_UP
+read -p "是否执行 docker compose up -d 使配置生效? (Y/n): " ANS_UP
 if [[ -z "$ANS_UP" || "$ANS_UP" =~ ^[Yy]$ ]]; then
   log_info "重建服务（docker compose up -d）..."
   (cd "${TARGET_DIR}" && docker compose up -d) || die "up -d 失败：配置已写入 ${ENV_FILE}，可手动排查后重试"
   wait_services_healthy "${TARGET_DIR}" || exit 1
   log_ok "配置已生效（变更前 .env 备份于 ${BACKUP_DIR}）"
 else
-  log_info "已跳过生效步骤：配置已写入 ${ENV_FILE}，稍后手动执行 cd ${TARGET_DIR} && docker compose up -d"
+  log_info "已跳过生效步骤：配置已写入 ${ENV_FILE}，可执行 cd ${TARGET_DIR} && docker compose up -d 生效"
 fi

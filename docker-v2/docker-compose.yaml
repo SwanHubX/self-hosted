@@ -1,12 +1,11 @@
-# SwanLab Self-Hosted（docker-next 架构）
-# 语义基线：charts/charts/self-hosted（appVersion 3.4.0）
-#   - gateway：traefik 3.6 标准镜像，docker provider（labels 路由，副本感知）+ file provider（中间件/block 路由）
-#   - vector：固定单实例（禁止 --scale vector，disk buffer 单写者），替代 fluent-bit 链路
-#   - 数据层四件套独立 profile：COMPOSE_PROFILES 控制，支持混合外接
-#   - 业务副本数经 .env 调整（deploy.replicas），默认对齐 chart（server/auth/house/next=2，cloud=1）
-# 版本维护：业务镜像 tag 由 .env 的 SWANLAB_VERSION 驱动（不设回退默认——丢键即拉镜像失败，
-#   防止 .env 缺失时静默用旧版）；bump 版本改 .env.example 与 scripts/pull-images.sh 清单
-# 前置要求：docker compose >= v2.24（depends_on.required 长语法）
+# SwanLab Self-Hosted（docker-v2）
+# 组件说明：
+#   - gateway：Traefik 3.6 网关，docker provider 动态发现服务副本，file provider 配置中间件与路由屏蔽
+#   - vector：指标汇聚缓冲，接收 house 数据写入 ClickHouse，单实例运行
+#   - 数据层：PostgreSQL、Redis、ClickHouse、MinIO 通过 COMPOSE_PROFILES 控制启停，支持外接实例
+#   - 业务服务：server、auth、house、next、cloud 支持多副本伸缩
+#   - server-migrate：一次性数据库迁移服务，在 server 服务启动前串行执行数据库变更
+# 前置要求：docker compose >= 2.24
 
 networks:
   swanlab-net:
@@ -33,7 +32,7 @@ services:
     ports:
       - "${EXPOSE_PORT:-8000}:80"
     volumes:
-      # 只读 socket：docker provider 发现副本；rootless/OrbStack 路径差异由 .env DOCKER_SOCKET_PATH 承载
+      # 挂载 Docker socket 供 docker provider 服务发现
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ./config/traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro
       - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
@@ -42,13 +41,13 @@ services:
       gateway-plugins:
         condition: service_completed_successfully
     healthcheck:
-      # /ping 挂在 traefik 入口（:8081）；:8080 是 internal 入口，无 /ping
+      # 健康检查端点位于管理端口 :8081/ping
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8081/ping"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # 一次性：复制 identify 插件到共享卷（对齐 chart initContainer download-identify）
+  # 复制 identify 鉴权插件到共享卷
   gateway-plugins:
     image: repo.swanlab.cn/public/swanlab-helper/identify:v1.2
     restart: "no"
@@ -58,16 +57,13 @@ services:
       - gateway-plugins:/plugins
 
   # ---------------- 指标管道 ----------------
-  # 固定单实例：--scale 副本共享同一 bind mount，vector disk buffer 为单写者 WAL，多进程共写必然损坏
+  # 磁盘缓冲数据目录为单写模式，保持单实例运行
   vector:
     <<: *common
     image: repo.swanlab.cn/public/vector:0.51.1-debian
     command: ["--config", "/etc/vector/vector.yaml"]
     depends_on:
-      # 关键：vector 必须等 clickhouse 健康再启动（required:false 兼容外接 CH）。
-      # 实测（隔离复现）：若 vector 先于 CH 启动（healthcheck failed），其 sink 批次的
-      # 空闲定时器永久失效——单条事件无限滞留，直到后续事件到达才连带刷出，
-      # 表现为"实验最后一批指标/媒体长时间不显示"。
+      # 等待 ClickHouse 健康后启动；外接 ClickHouse 时跳过
       clickhouse:
         condition: service_healthy
         required: false
@@ -151,19 +147,19 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     labels:
       - "traefik.enable=true"
-      # 桶名插值：路由前缀须与实际桶名一致（path-style 上传 URL 为 /<bucket>/<key>）
+      # 对象存储路由前缀，按桶名匹配转发
       - "traefik.http.routers.swanlab-s3.rule=PathPrefix(`/${S3_PUBLIC_BUCKET:-swanlab-public}`) || PathPrefix(`/${S3_PRIVATE_BUCKET:-swanlab-private}`)"
       - "traefik.http.routers.swanlab-s3.entrypoints=web"
       - "traefik.http.routers.swanlab-s3.middlewares=swanlab-s3-host@file"
       - "traefik.http.services.swanlab-s3.loadbalancer.server.port=9000"
     healthcheck:
-      # 新版镜像内 `mc ready local` 会挂死，改用官方 HTTP 存活端点（镜像内有 curl）
+      # MinIO HTTP 存活检查端点
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # 一次性：mc 建桶（--ignore-existing 幂等，重复 up 安全）
+  # 初始化创建对象存储桶
   minio-init:
     profiles: ["minio"]
     image: repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-08-13T08-35-41Z
@@ -197,7 +193,14 @@ services:
       redis:
         condition: service_healthy
         required: false
-    command: bash -c "npx prisma migrate deploy && node migrate.js && pm2-runtime app.js"
+      # 等待数据库迁移执行完成
+      server-migrate:
+        condition: service_completed_successfully
+      # 等待 MinIO 桶创建完成；外接 S3 时跳过
+      minio-init:
+        condition: service_completed_successfully
+        required: false
+    command: ["pm2-runtime", "app.js"]
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(`/api`)"
@@ -206,10 +209,9 @@ services:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.services.swanlab-server.loadbalancer.healthcheck.path=/api/"
       - "traefik.http.services.swanlab-server.loadbalancer.healthcheck.interval=10s"
-    environment:
+    environment: &server-env   # 与 server-migrate 共用环境变量
       - DATABASE_URL=${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}
-      # 两级回退：REPLICA 留空时沿用主库串（.env.example 语义），再兜底本机默认串。
-      # 外接 pg 且只填 DATABASE_URL 时，若直接回退本机默认串会指向未启动的 postgres 容器
+      # 未配置读副本连接串时使用主库连接串，兜底使用本机默认连接串
       - DATABASE_URL_REPLICA=${DATABASE_URL_REPLICA:-${DATABASE_URL:-postgresql://swanlab:${POSTGRES_PASSWORD}@postgres:5432/app?schema=public}}
       - REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
       - VERSION=${SWANLAB_VERSION}
@@ -239,6 +241,24 @@ services:
       timeout: 5s
       retries: 3
 
+  # 数据库结构迁移服务，单实例串行执行数据库升级脚本
+  server-migrate:
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v${SWANLAB_VERSION}
+    networks:
+      - swanlab-net
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      minio-init:
+        condition: service_completed_successfully
+        required: false
+    command: bash -c "npx prisma migrate deploy && node migrate.js"
+    environment: *server-env
+    labels:
+      - "traefik.enable=false"
+
   swanlab-auth:
     <<: *common
     image: repo.swanlab.cn/self-hosted/swanlab-auth:v${SWANLAB_VERSION}
@@ -259,10 +279,11 @@ services:
     environment:
       - SA_OAUTH_ENABLED=false
       - SA_REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
-      - SA_SERVER_URL=http://swanlab-server:3000/api
+      # 通过网关 internal 入口调用 server 服务，由网关负责实例健康调度
+      - SA_SERVER_URL=http://gateway:8080/api
       - SA_SSO_PUBLIC_URL=${PUBLIC_HOST:-}
     healthcheck:
-      # 待确认项 6 已实证：根路径 / 返回 404，真实健康端点为 /api/auth/health（200）
+      # auth 服务健康检查端点
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:3000/api/auth/health"]
       interval: 10s
       timeout: 5s
@@ -282,6 +303,10 @@ services:
         required: false
       vector:
         condition: service_healthy
+      # 等待 MinIO 桶创建完成；外接 S3 时跳过
+      minio-init:
+        condition: service_completed_successfully
+        required: false
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.swanlab-house.rule=PathPrefix(`/api/house`)"
@@ -296,7 +321,8 @@ services:
       - SH_VECTOR_URL=http://vector:8686
       - SH_API_PREFIX=/api/house
       - SH_DISTRIBUTED_ENABLE=true
-      - SH_SERVER_URL=http://swanlab-server:3000/api
+      # 通过网关 internal 入口调用 server 服务，由网关负责实例健康调度
+      - SH_SERVER_URL=http://gateway:8080/api
       - SH_DB_HOST=${CLICKHOUSE_HOST:-clickhouse}
       - SH_DB_PORT=${CLICKHOUSE_TCP_PORT:-9000}
       - SH_DB_NAME=${CLICKHOUSE_DATABASE:-app}
@@ -335,8 +361,7 @@ services:
     deploy:
       replicas: ${NEXT_REPLICAS:-2}
     depends_on:
-      # 依赖门控对齐 chart next initContainer(ping)：等 server/cloud/house 全部就绪再启动，
-      # 避免 up -d 并行启动窗口内 next 先于依赖就绪（页面 502/超时）
+      # 等待后端依赖服务健康就绪后启动
       swanlab-server:
         condition: service_healthy
       swanlab-cloud:
@@ -353,7 +378,8 @@ services:
     environment:
       - CLOUD_URL=http://swanlab-cloud:80
       - API_URL=http://gateway:8080/api
-      - API_VERIFIER_URL=http://swanlab-server:3000/api/identity
+      # 鉴权校验通过网关 internal 入口路由
+      - API_VERIFIER_URL=http://gateway:8080/api/identity
       - API_INTERNAL_URL=http://gateway:8080/api
       - API_DISPLAY_HOST=${PUBLIC_HOST:-}
     healthcheck:

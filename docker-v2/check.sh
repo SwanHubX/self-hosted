@@ -1,10 +1,10 @@
 #!/bin/bash
-# SwanLab Self-Hosted（docker-next 架构）巡检脚本
+# SwanLab Self-Hosted（docker-v2 架构）巡检脚本
 #
 # 用法: ./check.sh [运行目录(默认 ./swanlab)]
 #
-# 无副作用只读巡检（plan §10.3）：环境版本 / 运行目录完整性 / 防呆校验 /
-# 渲染 / 项目一致性（混栈检测）/ vector 单实例防呆 / 容器健康 / 磁盘余量
+# 只读巡检脚本：环境版本、运行目录完整性、配置校验、
+# 渲染检查、项目一致性、vector 单实例校验、容器健康状态、磁盘余量
 # 退出码: 0 = 无 FAIL（允许有 WARN）；1 = 存在 FAIL；2 = 运行目录不存在
 # 供运维日常与 CI 复用
 set -o pipefail
@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/lib.sh"
 TARGET_DIR="swanlab"
 [ $# -gt 0 ] && TARGET_DIR="$1"
 
-echo "${bold}===== SwanLab Self-Hosted（docker-next）巡检 =====${reset}"
+echo "${bold}===== SwanLab Self-Hosted（docker-v2）巡检 =====${reset}"
 echo "目标目录: ${TARGET_DIR}"
 
 if [ ! -d "$TARGET_DIR" ]; then
@@ -105,18 +105,17 @@ else
   pass_ "项目 swanlab 无外来容器（无混栈）"
 fi
 
-# ---------------- 6. vector 单实例防呆（plan §6） ----------------
-# vector disk buffer 是单写者 WAL + ack ledger，compose 的 --scale 副本共享同一 bind mount
-# （${DATA_PATH}/vector），多进程共写同一目录必然损坏；误操作时两个实例都会显示 healthy，
-# 只看容器健康无法暴露问题，必须显式数副本数
+# ---------------- 6. vector 单实例检查 ----------------
+# vector 磁盘缓冲依赖单实例独占数据目录（${DATA_PATH}/vector）
+# 多副本共享挂载目录会导致数据异常，需检查副本数
 echo "${bold}----- 6. vector 单实例 -----${reset}"
 VECTOR_N=$(vector_replica_count "$TARGET_DIR")
 if [ "$VECTOR_N" -gt 1 ]; then
-  fail_ "检测到 ${VECTOR_N} 个 vector 容器：plan §6 明确禁止 --scale vector——副本共享同一 bind 目录，disk buffer 为单写者 WAL + ack ledger，多副本共写必然损坏数据（指标静默丢失/缓冲损坏）"
-  fail_ "   立即恢复单实例: cd ${TARGET_DIR} && docker compose up -d --scale vector=1"
-  fail_ '   若缓冲已损坏，停栈后删除 ${DATA_PATH}/vector 目录再启动（会丢弃未投递缓冲）'
+  fail_ "检测到 ${VECTOR_N} 个 vector 容器：vector 不支持多实例水平扩展，多副本共享数据目录会导致指标异常"
+  fail_ "   恢复单实例命令: cd ${TARGET_DIR} && docker compose up -d --scale vector=1"
+  fail_ '   如缓冲异常，停止服务后清空 ${DATA_PATH}/vector 目录再启动'
 elif [ "$VECTOR_N" -eq 1 ]; then
-  pass_ "vector 单实例（1 个容器，符合 plan §6 约束）"
+  pass_ "vector 单实例（1 个容器）"
 else
   warn_ "未发现 vector 容器（服务未启动或已 down）"
 fi
@@ -130,7 +129,7 @@ else
   for id in $ids; do
     name=$(docker inspect --format '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##')
     svc=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id" 2>/dev/null)
-    case "$svc" in gateway-plugins|minio-init) continue ;; esac   # 一次性服务，退出即正常
+    case "$svc" in gateway-plugins|minio-init|server-migrate) continue ;; esac   # 一次性服务，退出即正常
     state=$(docker inspect --format '{{.State.Status}}' "$id" 2>/dev/null)
     health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null)
     case "$state":$health in
@@ -155,16 +154,16 @@ case "$DATA_PATH_V" in
 esac
 p="$CHECK_PATH"
 while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
-# -P：POSIX 单行输出——GNU df 对长设备名（LVM /dev/mapper/*）会折行，NR==2 会取到 Use%
+# -P：POSIX 格式输出，避免长设备名折行
 avail_kb=$(df -kP "$p" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "$avail_kb" ]; then
   avail_gib=$((avail_kb / 1024 / 1024))
   if [ "$avail_gib" -ge 40 ]; then
-    pass_ "磁盘剩余 ${avail_gib}GiB（≥ 40GiB，vector 缓冲 30Gi 余量足够）"
+    pass_ "磁盘剩余 ${avail_gib}GiB（≥ 40GiB，满足运行余量要求）"
   elif [ "$avail_gib" -ge 10 ]; then
-    warn_ "磁盘剩余 ${avail_gib}GiB（< 40GiB；vector 磁盘缓冲最坏 30Gi 且与数据同盘）"
+    warn_ "磁盘剩余 ${avail_gib}GiB（< 40GiB，低于推荐余量）"
   else
-    fail_ "磁盘剩余 ${avail_gib}GiB（< 10GiB，随时可能写满连坐全部数据服务）"
+    fail_ "磁盘剩余 ${avail_gib}GiB（< 10GiB，磁盘空间不足）"
   fi
 else
   warn_ "无法检测 ${p} 的磁盘剩余（df 无输出）"

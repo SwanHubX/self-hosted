@@ -1,5 +1,5 @@
 #!/bin/bash
-# lib.sh — docker-next 脚本共用函数库
+# lib.sh — docker-v2 脚本共用函数库
 # 由 install.sh / upgrade.sh（以及后续 configure.sh / check.sh / migrate.sh）source，不单独执行
 # 兼容 bash 3.2（macOS 系统自带），不使用 mapfile / 关联数组等 bash4 特性
 
@@ -22,7 +22,7 @@ die()      { log_err "$@"; exit 1; }
 
 # ---------------- 环境检查 ----------------
 
-# docker 已安装且 daemon 运行（Linux 提供自动拉起选项，对齐旧版 install.sh 交互）
+# 检查 Docker 是否安装且运行
 require_docker() {
   if ! command -v docker >/dev/null 2>&1; then
     die "Docker 未安装，请先安装 Docker"
@@ -50,8 +50,7 @@ require_docker() {
   fi
 }
 
-# compose >= v2.24（depends_on.required 长语法的版本闸门）
-# compose_version_ok：仅返回码判断（0=满足 2=不可用 1=版本过低），不输出不退出
+# 检查 docker compose 版本（>= 2.24）
 compose_version_ok() {
   local ver major minor
   ver=$(docker compose version --short 2>/dev/null | sed 's/^v//' | cut -d- -f1)
@@ -67,12 +66,12 @@ require_compose_v224() {
   local ver
   ver=$(docker compose version --short 2>/dev/null | sed 's/^v//' | cut -d- -f1)
   if ! compose_version_ok; then
-    die "需要 docker compose >= v2.24（当前 ${ver:-不可用}；depends_on.required 长语法依赖此版本）"
+    die "需要 docker compose >= v2.24（当前 ${ver:-不可用}）"
   fi
   log_ok "docker compose 版本满足要求（${ver} >= 2.24）"
 }
 
-# 探测 docker socket 路径（rootless / OrbStack 差异），结果写入 DOCKER_SOCKET_PATH
+# 探测 docker socket 路径
 resolve_docker_socket_path() {
   local docker_host="${DOCKER_HOST:-}"
   local rootless_socket
@@ -97,33 +96,35 @@ resolve_docker_socket_path() {
   fi
 }
 
-# 随机密码（数字 + 大小写字母，10 位）
+# 生成随机密码
 random_password() {
   openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | cut -c1-10
 }
 
-# 探测混入本项目的"外来"容器：属于 compose 项目 <project>、但 working_dir 不是 <run_dir>
-# 结果写入全局 FOREIGN_CONTAINER / FOREIGN_WD（未发现时 FOREIGN_CONTAINER 为空，返回 1）
-# 供 install 预检、check.sh 混栈巡检与 migrate.sh 共用
-# 第二个参数为 compose 项目名（默认 swanlab）；migrate.sh 的旧目录名不保证是 swanlab
+# 检查属于指定 compose 项目但工作目录不同的容器
+# 使用 pwd -P 解析物理路径进行比对，避免软链接差异
 foreign_project_container() {
-  local run_dir="$1" project="${2:-swanlab}" run_dir_abs parent ids id
+  local run_dir="$1" project="${2:-swanlab}" run_dir_abs parent ids id wd wd_abs
   FOREIGN_CONTAINER=""
   FOREIGN_WD=""
   if [ -d "$run_dir" ]; then
-    run_dir_abs=$(cd "$run_dir" && pwd)
+    run_dir_abs=$(cd "$run_dir" && pwd -P)
   else
     parent=$(dirname "$run_dir")
     [ -d "$parent" ] || parent="."
-    run_dir_abs=$(cd "$parent" && pwd)/$(basename "$run_dir")
+    run_dir_abs=$(cd "$parent" && pwd -P)/$(basename "$run_dir")
   fi
 
   ids=$(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.ID}}' 2>/dev/null)
   for id in $ids; do
-    FOREIGN_WD=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id" 2>/dev/null)
-    [ -z "$FOREIGN_WD" ] && continue
-    if [ "$FOREIGN_WD" != "$run_dir_abs" ]; then
+    wd=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id" 2>/dev/null)
+    [ -z "$wd" ] && continue
+    # 容器记录的目录可能已被删除或重命名
+    wd_abs="$wd"
+    [ -d "$wd" ] && wd_abs=$(cd "$wd" && pwd -P 2>/dev/null || echo "$wd")
+    if [ "$wd_abs" != "$run_dir_abs" ]; then
       FOREIGN_CONTAINER=$(docker inspect --format '{{.Name}}' "$id" 2>/dev/null | sed 's#^/##')
+      FOREIGN_WD="$wd_abs"
       return 0
     fi
   done
@@ -131,16 +132,12 @@ foreign_project_container() {
   return 1
 }
 
-# 项目名占用预检（install 专用；migrate.sh 原地迁移有意沿用项目名，不调用此函数）
-# 项目名固定 swanlab（原地迁移依赖同名接管网络/卷/容器前缀）。若同名 compose 项目
-# 已存在于其他运行目录（如旧版 docker 部署——旧安装器默认目录也叫 swanlab/），
-# 并存安装会导致：宿主机端口抢占、两栈容器互为 orphan、docker compose 将两份
-# compose 文件合并进同一项目视图（清理任一侧波及另一侧）——必须拒绝。
+# 检查项目名占用情况，避免端口冲突与容器管理冲突
 require_project_name_free() {
   if foreign_project_container "$1"; then
     log_err "检测到 compose 项目 swanlab 已部署于其他目录：容器 ${FOREIGN_CONTAINER}（working_dir ${FOREIGN_WD}）"
-    log_err "项目名固定为 swanlab（原地迁移语义），并存安装会造成端口抢占与容器互为 orphan。"
-    log_err "存量部署请使用 migrate.sh 原地迁移（./migrate.sh <旧目录>）；或先在旧目录执行 docker compose down 后重试。"
+    log_err "项目名固定为 swanlab，并存安装会造成端口冲突与容器管理冲突。"
+    log_err "存量部署请使用 migrate.sh 迁移（./migrate.sh <旧目录>）；或在旧目录执行 docker compose down 后重试。"
     exit 1
   fi
   return 0
@@ -148,19 +145,13 @@ require_project_name_free() {
 
 # ---------------- .env 解析与防呆校验 ----------------
 
-# env_get <key> <file>：取值（支持值中含 =），文件或键不存在时输出空
-# 同一文件存在重复键时取最后一条——与 docker compose 的 .env 解析语义一致
-# （compose 渲染时后写的键覆盖先写的；校验侧若取首条会与实际生效配置脱节）
+# 读取环境变量值，重复键以最后一条为准
 env_get() {
   [ -f "$2" ] || return 0
   grep -E "^${1}=" "$2" 2>/dev/null | tail -1 | cut -d= -f2-
 }
 
-# 防呆校验（install / upgrade / 后续 configure / check / migrate 共用）
-# 规则（plan §7.3）：
-#   - profile 开 + 外接串已填 → 警告（外接串生效，本机容器空转）
-#   - profile 关 + 外接串为空 → 错误（compose 回退本机默认连接串，指向不存在的容器）
-#   - SS_STORAGE_TYPE 枚举校验 + 与 minio profile / S3_* 变量一致性
+# 环境变量校验：检查配置项完整性与数据源模式一致性
 validate_env() {
   local envfile="$1"
   [ -f "$envfile" ] || die ".env 不存在: ${envfile}"
@@ -174,7 +165,7 @@ validate_env() {
 
   local errors=0 v
 
-  # compose 镜像 tag 不设回退默认（v${SWANLAB_VERSION}），丢键会渲染出 ":v" 到拉镜像才失败——在此显式拦截
+  # 检查版本号是否配置
   [ -z "$(env_get SWANLAB_VERSION "$envfile")" ] && { log_err "SWANLAB_VERSION 不能为空（镜像 tag 依赖此值；对照 .env.example 补写）"; errors=$((errors + 1)); }
 
   v=$(env_get DATABASE_URL "$envfile")
@@ -214,9 +205,7 @@ validate_env() {
       ;;
     remote)
       has_profile minio && { log_err "SS_STORAGE_TYPE=remote 时不应保留 minio profile（请从 COMPOSE_PROFILES 移除）"; errors=$((errors + 1)); }
-      # required 字段对齐 chart templates/s3/_helpers.tpl（integrations.s3.enabled 时
-      # endpoint/region/port/bucket/domain 均 required，渲染即失败）——compose 侧静默
-      # 给本机口径（region=local/port=9000/ssl=false/domain=""）是云 S3 必坏配置，须拦下
+      # 校验外接 S3 必需参数
       missing=""
       [ -z "$(env_get S3_PUBLIC_ENDPOINT "$envfile")" ] && missing="${missing} S3_PUBLIC_ENDPOINT"
       [ -z "$(env_get S3_PRIVATE_ENDPOINT "$envfile")" ] && missing="${missing} S3_PRIVATE_ENDPOINT"
@@ -226,13 +215,13 @@ validate_env() {
       [ -z "$(env_get S3_ACCESS_KEY "$envfile")" ] && missing="${missing} S3_ACCESS_KEY"
       [ -z "$(env_get S3_SECRET_KEY "$envfile")" ] && missing="${missing} S3_SECRET_KEY"
       [ -n "$missing" ] && { log_err "SS_STORAGE_TYPE=remote 缺少必要变量:${missing}（桶需预先创建）"; errors=$((errors + 1)); }
-      # 端口/协议不强拦（内网 http S3 合法），但疑似本机 MinIO 口径时强提示
+      # 校验外接 S3 端口配置
       if [ "$(env_get S3_PUBLIC_PORT "$envfile")" = "9000" ] && [ "$(env_get S3_PUBLIC_USE_SSL "$envfile")" = "false" ]; then
-        log_warn "外接 S3 端口 9000 且未启用 SSL——疑似本机 MinIO 口径（chart 外接默认 443/true），请确认与外部存储实际一致"
+        log_warn "外接 S3 端口 9000 且未启用 SSL，请确认与外部存储实际配置一致"
       fi
-      # path-style 同理：外接默认 false（vhost，云 S3 口径），true 仅 MinIO 兼容存储需要
+      # 校验外接 S3 寻址模式配置
       if [ "$(env_get S3_PUBLIC_PATH_STYLE "$envfile")" = "true" ] && [ "$(env_get S3_PRIVATE_PATH_STYLE "$envfile")" = "true" ]; then
-        log_warn "外接 S3 path-style=true——云 S3 通常为 false（virtual-hosted style）；仅 MinIO 兼容存储需要 true，请确认"
+        log_warn "外接 S3 配置为 path-style 模式，请确认与外部存储实际配置一致"
       fi
       ;;
     *)
@@ -245,9 +234,7 @@ validate_env() {
   log_ok "防呆校验通过（COMPOSE_PROFILES=${profiles:-<空>} / SS_STORAGE_TYPE=${sst}）"
 }
 
-# env_set <key> <value> <file>：更新或追加一个键（值原样写入，不经 shell/sed 解释）
-# 先剔除该键全部旧行（顺带消重复键）再追加——与 compose "最后一条生效"语义一致
-# 经 cat > 写回，保留原文件权限（.env 的 600）
+# 更新或追加环境变量，写入时保留原文件权限
 env_set() {
   local key="$1" value="$2" file="$3" tmp
   [ -f "$file" ] || die ".env 不存在: ${file}"
@@ -267,18 +254,13 @@ profile_remove() {  # <profiles> <name>
   echo "$1" | tr ',' '\n' | grep -vx -- "$2" | paste -sd, -
 }
 
-# 磁盘剩余空间检查（对齐 chart vector persistence 40Gi / buffer ≥3× 语义：
-# 三个 sink 各 10Gi disk buffer，when_full=block 最坏 30Gi，且与 pg/CH/minio 数据同盘）
+# 检查磁盘剩余空间
 # check_disk_space <路径> <最小GiB> <模式: strict|confirm|warn>
-#   strict  不足即 die（安装等不可降级场景）
-#   confirm 交互确认后继续；非交互终端（管道/CI）降级为 warn
-#   warn    仅警告
-# 路径不存在时向上取最近存在的祖先目录（安装前数据目录尚未创建）
 check_disk_space() {
   local path="$1" min_gib="$2" mode="${3:-warn}" p avail_kb avail_gib
   p="$path"
   while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
-  # -P：POSIX 单行输出——GNU df 对长设备名（LVM /dev/mapper/*）会折行，NR==2 会取到 Use%
+  # -P：POSIX 单行输出
   avail_kb=$(df -kP "$p" 2>/dev/null | awk 'NR==2{print $4}')
   if [ -z "$avail_kb" ]; then
     log_warn "无法检测磁盘剩余空间（df 无输出），跳过检查"
@@ -289,7 +271,7 @@ check_disk_space() {
     log_ok "磁盘剩余空间: ${avail_gib}GiB（要求 ≥ ${min_gib}GiB）"
     return 0
   fi
-  local reason="vector 磁盘缓冲最坏 30Gi（3 sink × 10Gi，when_full=block），与 pg/ClickHouse/minio 数据同盘，不足可能连坐故障"
+  local reason="vector 磁盘缓冲与数据库同盘，空间不足可能影响服务运行"
   case "$mode" in
     strict)
       die "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB：${reason}——请更换数据路径或清理磁盘后重试"
@@ -300,7 +282,7 @@ check_disk_space() {
         read -p "   仍要继续? (y/N): " ANS_DISK
         [[ "$ANS_DISK" =~ ^[Yy]$ ]] || die "已取消（可指定其他数据路径后重试）"
       else
-        log_warn "非交互环境，继续执行（自担风险）"
+        log_warn "非交互环境，继续执行"
       fi
       ;;
     warn)
@@ -311,8 +293,7 @@ check_disk_space() {
 
 # ---------------- compose 操作 ----------------
 
-# 运行目录对应的 compose 项目名（.env 的 COMPOSE_PROJECT_NAME 优先，否则 compose 取目录名）
-# 解析失败（compose 不可渲染）时回退为目录名——旧版 docker 部署的 .env 不含该键，即取 swanlab/
+# 获取运行目录对应的 compose 项目名
 compose_project_name() {
   local run_dir="$1" name=""
   if [ -d "$run_dir" ]; then
@@ -322,16 +303,14 @@ compose_project_name() {
   printf '%s\n' "$name"
 }
 
-# 本项目 vector 容器数（含已停止；-a），供 check.sh 防呆
-# plan §6：vector 固定单实例——compose 的 --scale 副本共享同一 bind mount，
-# 而 vector disk buffer 是单写者 WAL + ack ledger，多进程共写同一目录必然损坏
+# 统计 vector 容器数量，用于单实例检查
 vector_replica_count() {
   local run_dir="$1" n
   n=$( (cd "$run_dir" && docker compose ps -aq vector 2>/dev/null) | grep -c . )
   printf '%s\n' "${n:-0}"
 }
 
-# 渲染检查（cwd 无关，内部 cd；compose 自动读取运行目录的 .env）
+# 检查 compose 配置渲染
 render_check() {
   local run_dir="$1"
   (cd "$run_dir" && docker compose config --quiet) \
@@ -339,9 +318,7 @@ render_check() {
   log_ok "compose 渲染通过"
 }
 
-# compose 当前实际启用（按 .env 的 COMPOSE_PROFILES 过滤）的镜像清单，去重
-# compose >= 2.20 提供 config --images；旧版本无此 flag 时回退解析 config 的 image 字段
-# 解析失败/为空时返回 1——调用方须与"无需镜像"区分
+# 获取当前启用的镜像列表
 compose_required_images() {
   local run_dir="$1" out
   out=$( (cd "$run_dir" && docker compose config --images 2>/dev/null) )
@@ -353,8 +330,7 @@ compose_required_images() {
   printf '%s\n' "$out" | sort -u
 }
 
-# 校验 compose 所需镜像是否已全部存在于本地 Docker（离线/内网部署前置检查）
-# 齐备返回 0；缺失时打印缺失清单并返回 1
+# 检查本地镜像完整性
 verify_local_images() {
   local run_dir="$1" images img missing="" count
   images=$(compose_required_images "$run_dir") || {
@@ -373,18 +349,15 @@ verify_local_images() {
   return 0
 }
 
-# 拉取镜像，带离线降级：pull 失败时只要所需镜像已全部在本地就继续，不直接 die
-# pull_images <run_dir> <offline: 0|1>
-# 依据：离线/内网环境下 docker compose pull 即使本地已有镜像也会尝试连接 registry
-# 校验元数据，连接失败即整体退出——若因此终止，离线部署（docker load 导入镜像）无法进行
+# 拉取镜像，pull 失败或离线模式下校验本地镜像
 pull_images() {
   local run_dir="$1" offline="${2:-0}"
   if [ "$offline" -eq 1 ]; then
-    log_info "离线模式：跳过 docker compose pull，直接校验本地镜像"
+    log_info "离线模式：跳过 docker compose pull，校验本地镜像"
     verify_local_images "$run_dir"
     return $?
   fi
-  log_info "拉取全部镜像（docker compose pull）..."
+  log_info "拉取镜像（docker compose pull）..."
   if (cd "$run_dir" && docker compose pull); then
     return 0
   fi
@@ -393,7 +366,7 @@ pull_images() {
   verify_local_images "$run_dir"
 }
 
-# 由 .env 推导需要健康等待的服务清单（不含一次性 gateway-plugins / minio-init）
+# 获取需要健康检查的服务列表
 compose_services_for_profiles() {
   local envfile="$1"
   local profiles
@@ -406,9 +379,7 @@ compose_services_for_profiles() {
   echo "$svcs"
 }
 
-# 副本感知的健康等待：逐服务枚举其全部容器，等待每一个 healthcheck 变 healthy
-# 容器退出/崩溃重启时健康探针不再推进（restart 策略下停在 State.Status=restarting），
-# 只观察 Health.Status 会盲等到 timeout（默认 300s）——须同时观察 State.Status 快速失败
+# 检查并等待各服务容器就绪与健康状态
 wait_services_healthy() {
   local run_dir="$1" timeout="${2:-300}"
   local svcs failed svc ids id name status run_state info i
@@ -433,7 +404,7 @@ wait_services_healthy() {
         run_state=${info%% *}
         status=${info##* }
         case "$run_state" in
-          # 容器从未启动(created) / 已退出 / 崩溃重启 / 已被移除：健康检查不会再有结果，立即失败不空等
+          # 容器未启动(created) / 已退出 / 崩溃重启 / 已被移除：退出等待
           created|exited|dead|restarting|"") break ;;
         esac
         [ "$status" = "healthy" ] && break
@@ -469,7 +440,7 @@ wait_services_healthy() {
     echo "💡 查看日志: cd ${run_dir} && docker compose logs <service>"
     return 1
   fi
-  log_ok "全部服务健康"
+  log_ok "服务健康检查通过"
 }
 
 # ---------------- 收尾输出 ----------------

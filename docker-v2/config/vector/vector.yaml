@@ -1,7 +1,6 @@
-# vector 配置（固定单实例，禁止 --scale vector）
-# 语义基线：charts/charts/self-hosted templates/vector/config.yaml
-# 数据流：house 直推 http :8686 → remap → 按 type 分流 scalar/media/log → 三个 clickhouse sink
-# ClickHouse 连接参数经环境变量注入（compose 由 .env 提供，CLICKHOUSE_DB 默认 app 对齐 chart）
+# Vector 配置（单实例运行）
+# 数据流：接收 HTTP 指标，按类型分流至 scalar、media、log 表并写入 ClickHouse
+# ClickHouse 连接参数由环境变量注入
 
 data_dir: "/var/lib/vector"
 
@@ -84,7 +83,7 @@ sinks:
       timeout_secs: 5
     buffer:
       type: disk
-      # 10Gi，对齐 chart vector.sinks.bufferMaxSize；单写者 WAL，多进程共写会损坏
+      # 磁盘缓冲上限 10GiB
       max_size: 10737418240
       when_full: block
 

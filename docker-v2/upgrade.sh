@@ -1,5 +1,5 @@
 #!/bin/bash
-# SwanLab Self-Hosted（docker-next 架构）升级脚本
+# SwanLab Self-Hosted（docker-v2 架构）升级脚本
 #
 # 用法: ./upgrade.sh [运行目录(默认 ./swanlab)] [选项]
 #   (默认)              快照 → (本机 PG 自动 pg_dump) → 铺设新模板 → 拉镜像 → up -d → 健康等待
@@ -10,9 +10,9 @@
 #                       （数据库快照按需手动导入，脚本会给出命令）
 #   --yes | -y          跳过交互确认
 #
-# 数据库迁移由 swanlab-server 启动命令自带（chart 同款），脚本不做迁移预跑。
+# 数据库迁移由一次性服务 server-migrate 在 server 副本启动前执行。
 #
-# 从 docker-next 模板目录运行（自动定位模板文件），目标为安装时创建的运行目录。
+# 从 docker-v2 模板目录运行（自动定位模板文件），目标为安装时创建的运行目录。
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
 done
 [ ${#POSITIONAL[@]} -gt 0 ] && TARGET_DIR="${POSITIONAL[0]}"
 
-echo "${bold}===== SwanLab Self-Hosted（docker-next）升级 =====${reset}"
+echo "${bold}===== SwanLab Self-Hosted（docker-v2）升级 =====${reset}"
 
 require_compose_v224
 
@@ -103,7 +103,7 @@ if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
   log_warn "当前版本与目标版本相同（重跑迁移与重建，不改变版本）"
 fi
 
-# 磁盘剩余（数据目录所在分区；40Gi 阈值对齐 chart vector persistence，详见 check_disk_space）
+# 检查数据目录所在分区磁盘空间（阈值 40GiB）
 DATA_PATH_V=$(env_get DATA_PATH "${TARGET_DIR}/.env")
 [ -z "$DATA_PATH_V" ] && DATA_PATH_V="./data"
 case "$DATA_PATH_V" in
@@ -150,7 +150,7 @@ cp -r "${TARGET_DIR}/config" "$BACKUP_DIR/" \
 } > "$BACKUP_DIR/metadata.txt"
 log_ok "已快照当前部署到 ${BACKUP_DIR}"
 
-# ---------------- 2. 数据库快照（prisma 迁移前向单向，不可 down） ----------------
+# ---------------- 2. 数据库快照 ----------------
 PROFILES=$(env_get COMPOSE_PROFILES "${TARGET_DIR}/.env")
 case ",$PROFILES," in
   *,postgres,*)
@@ -160,7 +160,7 @@ case ",$PROFILES," in
     log_ok "数据库快照: ${BACKUP_DIR}/pg_snapshot.sql.gz"
     ;;
   *)
-    log_warn "PostgreSQL 为外接部署：prisma 迁移为前向单向操作，请自行确认已有数据库快照"
+    log_warn "PostgreSQL 为外接部署，请确认已有数据库快照"
     if [ "$ASSUME_YES" -eq 0 ]; then
       read -p "   确认已有快照并继续? (y/N): " CONFIRM_SNAPSHOT
       [[ "$CONFIRM_SNAPSHOT" =~ ^[Yy]$ ]] || { echo "已取消"; exit 1; }
@@ -168,16 +168,14 @@ case ",$PROFILES," in
     ;;
 esac
 
-# ---------------- 3. 铺设新模板（compose + config；.env 保留用户配置，仅更新版本号） ----------------
+# ---------------- 3. 铺设新模板与更新版本号 ----------------
 cp -f "${SCRIPT_DIR}/docker-compose.yaml" "${TARGET_DIR}/"
 rm -rf "${TARGET_DIR}/config"
 cp -r "${SCRIPT_DIR}/config" "${TARGET_DIR}/config"
-# 用 env_set（原地截断写回）而非 sed -i：复用 lib 的写入路径统一处理去重与权限，
-# 且避免把 TARGET_VERSION 拼进 sed 表达式——--version 校验为宽松通配，值含 / 或 &
-# 会破坏替换（sed 非 0 退出后 && 跳过清理，脚本仍继续用旧版本号拉镜像）
+# 更新 .env 中的 SWANLAB_VERSION 配置
 env_set SWANLAB_VERSION "$TARGET_VERSION" "${TARGET_DIR}/.env"
 
-# 模板新增变量提示（当前 .env 缺失的键 → compose 用内嵌默认值，提示用户可手动补充）
+# 检查并提示模板新增配置项
 MISSING_KEYS=""
 while IFS='=' read -r key _; do
   case "$key" in ''|'#'*) continue ;; esac
@@ -185,18 +183,16 @@ while IFS='=' read -r key _; do
 done < "${SCRIPT_DIR}/.env.example"
 [ -n "$MISSING_KEYS" ] && log_warn "模板新增变量（未写入 .env，使用默认值）:${MISSING_KEYS}；可对照 ${SCRIPT_DIR}/.env.example 手动补充"
 
-# ---------------- 4. 校验 + 拉取新镜像 ----------------
+# ---------------- 4. 校验与拉取镜像 ----------------
 validate_env "${TARGET_DIR}/.env" || die "升级后的 .env 校验失败（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}）"
 render_check "${TARGET_DIR}"
 
-# 先铺设新模板再 pull：此时 TARGET_DIR 内已是目标版本 compose/.env，
-# 显式 pull 拉到的才是新镜像（否则拉旧 tag，新镜像反由 up -d 隐式拉取）
-# 离线/内网（--offline，或 pull 失败但所需镜像已在本地）自动降级为本地镜像校验
+# 拉取目标版本镜像；离线模式校验本地镜像
 pull_images "${TARGET_DIR}" "${OFFLINE}" \
-  || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --next --save 打包，在目标机 docker load 后加 --offline 重试）"
+  || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --v2 --save 打包，在目标机 docker load 后加 --offline 重试）"
 
-# ---------------- 5. 重建 ----------------
-# server 启动命令自带 prisma migrate deploy（chart 同款），重建即完成升级迁移
+# ---------------- 5. 重建服务 ----------------
+# 启动服务；数据库迁移由 server-migrate 在 server 副本启动前完成
 log_info "重建服务（docker compose up -d）..."
 (cd "${TARGET_DIR}" && docker compose up -d) \
   || die "up -d 失败（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}）"

@@ -1,0 +1,41 @@
+# Traefik 动态配置
+# 定义公共中间件与内部接口屏蔽路由；业务服务路由通过容器标签自动发现
+
+http:
+  middlewares:
+    # 鉴权插件：向 server /api/identity 发起身份校验
+    swanlab-identify:
+      plugin:
+        identify:
+          # 内部回调地址指向网关 internal 入口，由 server-identity 路由转发
+          AuthUrl: "http://gateway:8080/api/identity"
+    # 请求头中间件：重写 Host 指向本机 MinIO
+    swanlab-s3-host:
+      headers:
+        customRequestHeaders:
+          Host: "minio:9000"
+
+  routers:
+    # 鉴权直连路由：internal 入口专用，不挂载 identify 中间件，避免鉴权请求递归
+    server-identity:
+      rule: "PathPrefix(`/api/identity`)"
+      service: swanlab-server@docker
+      entryPoints:
+        - "internal"
+    # 内部通信路由：服务间内部调用路由，不挂载 identify 中间件
+    server-internal:
+      rule: "PathPrefix(`/api/internal`)"
+      service: swanlab-server@docker
+      entryPoints:
+        - "internal"
+    # 内部接口屏蔽：禁止外部 web 入口访问内部接口
+    server-router-block:
+      rule: "PathPrefix(`/api/internal`)"
+      service: noop@internal
+      entryPoints:
+        - "web"
+    house-router-block:
+      rule: "PathPrefix(`/api/house/internal`)"
+      service: noop@internal
+      entryPoints:
+        - "web"
