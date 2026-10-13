@@ -32,7 +32,10 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v3.5.0 (2026.10.13)**
 
-<!-- TODO: Add update content -->
+- 📊 Added experiment focus feature: hovering over the corresponding legend or experiment automatically highlights it.
+- 🦜 Optimized the experiment pinning feature in the sidebar, supporting more flexible experiment filtering methods.
+- 📉 Added experiment group aggregation settings.
+- 🐞 Fixed rendering anomalies in line charts when encountering extreme values of ±1e308.
 
 **v3.4.0 (2026.09.17)**
 
@@ -53,6 +56,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - 🐞 Fixed an issue where empty system charts could not be hidden.
 - 🐞 Fixed an issue where the experiment color change in comparison view was not synced to the single experiment view.
 
+<details><summary>Full Changelog</summary>
+
 **v3.1.1 (2026.08.04)**
 
 - 📉 Support "Import Runs" for cross-project comparison experiments
@@ -66,8 +71,6 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 **v3.0.0 (2026.07.21)**
 
 - 📊 New multi-view interactive dashboard online, requires SwanLab ≥ 0.9.0+ SDK
-
-<details><summary>Full Changelog</summary>
 
 **v2.8.1 (2026.06.15)**
 
