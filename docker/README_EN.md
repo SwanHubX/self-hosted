@@ -80,6 +80,29 @@ For example, to specify the storage path as `/data` and expose port `80`:
 $ ./install.sh -d /data -p 80 -s
 ```
 
+### iframe Embedding (Optional)
+
+If you embed SwanLab pages into your own platform via an iframe, the login state will not persist: the default login cookie uses `SameSite=Lax`, which browsers reject in cross-site iframes. Enable `SS_SESSION_SECURE` to make the login cookie `Secure; SameSite=None`:
+
+```yaml
+# Add to the swanlab-server service environment in docker-compose.yaml
+- SS_SESSION_SECURE=true
+```
+
+Restart the containers to apply the change: `docker compose up -d`.
+
+**Prerequisites**:
+
+1. The entire path from the browser to the gateway must be HTTPS. The default deployment is HTTP; configure TLS yourself (e.g. via your own reverse proxy or a gateway certificate).
+2. If there is an additional reverse proxy (nginx, etc.) in front of the gateway, it must pass through the `X-Forwarded-Proto: https` request header. Otherwise the backend refuses to write a Secure cookie because the request does not look like HTTPS, which shows up as a 500 on the login API.
+
+**Troubleshooting**:
+
+- Login succeeds in the iframe but keeps redirecting back to the login page: `SS_SESSION_SECURE` is not enabled, or the deployment chain is not HTTPS.
+- The login API returns 500 after enabling: the request does not reach the backend as HTTPS (missing TLS or missing `X-Forwarded-Proto`).
+
+Note: this feature requires a swanlab-server image newer than v3.5.0; some browsers (e.g. Chrome) impose stricter third-party cookie rules — if the login state still cannot persist, please report it at [SwanLab-Server#1148](https://github.com/SwanHubX/SwanLab-Server/issues/1148).
+
 ### Execution Results
 
 After successful script execution, a `swanlab/` directory will be created, and two files will be generated in the current directory:

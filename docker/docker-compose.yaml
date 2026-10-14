@@ -171,6 +171,9 @@ services:
       - ACCESS_KEY=swanlab
       - SECRET_KEY=swanlab-minio
       - VERSION=3.5.0
+      # 【可选】将 SwanLab 嵌入 iframe 时取消注释开启，登录 cookie 将变为 Secure; SameSite=None
+      # 前提：浏览器到网关全程 HTTPS，且反向代理需透传 X-Forwarded-Proto: https，详见 README「iframe 嵌入」
+      # - SS_SESSION_SECURE=true
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(`/api`)"
