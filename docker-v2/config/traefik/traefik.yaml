@@ -1,0 +1,47 @@
+# Traefik 静态配置
+# 通过 docker provider 自动发现容器副本路由，结合 dynamic 目录加载中间件
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO
+
+# 定义入口点
+entryPoints:
+  web:
+    address: ":80"
+    # S3 文件上传需要透传 Forwarded 头
+    forwardedHeaders:
+      insecure: true
+  # 集群内流量入口（swanlab-next 的 API_URL/API_INTERNAL_URL 指向 gateway:8080）
+  internal:
+    address: ":8080"
+  # traefik 自身入口：承载 /ping 健康检查
+  traefik:
+    address: ":8081"
+  metrics:
+    address: ":9100"
+
+providers:
+  # Docker provider：根据容器标签动态发现服务路由与实例健康状态
+  # 仅 swanlab-net 网络中启用 traefik.enable 标签的容器参与路由
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: swanlab-net
+  # File provider：加载 dynamic 目录下的中间件与路由配置
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+# 健康检查端点（:8081/ping）
+ping:
+  entryPoint: "traefik"
+  terminatingStatusCode: 503
+
+experimental:
+  localPlugins:
+    identify:
+      moduleName: github.com/swanhubx/swanlab-helper/identify
