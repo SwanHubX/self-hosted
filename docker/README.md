@@ -81,6 +81,29 @@ $ ./install.sh
 $ ./install.sh -d /data -p 80 -s
 ```
 
+### iframe 嵌入（可选）
+
+如果需要把 SwanLab 页面嵌入到自己平台的网页（iframe）中，会发现登录状态无法保持：默认登录 cookie 为 `SameSite=Lax`，会被浏览器在跨站 iframe 中拒收。此时需要开启 `SS_SESSION_SECURE`，使登录 cookie 变为 `Secure; SameSite=None`：
+
+```yaml
+# docker-compose.yaml 的 swanlab-server 服务 environment 中添加
+- SS_SESSION_SECURE=true
+```
+
+修改后需重启容器生效：`docker compose up -d`。
+
+**开启前提**：
+
+1. 浏览器到网关必须全程 HTTPS。默认部署为 HTTP，需自行配置 TLS（如使用自建反向代理或网关证书）。
+2. 如果在网关前还有自建反向代理（nginx 等），必须透传 `X-Forwarded-Proto: https` 请求头，否则后端会因判定请求非 HTTPS 而拒绝写入 Secure cookie，表现为登录接口 500。
+
+**故障对照**：
+
+- iframe 中登录后仍跳回登录页：未开启 `SS_SESSION_SECURE`，或部署链路非 HTTPS。
+- 开启后登录接口返回 500：请求未以 HTTPS 到达后端（缺少 TLS 或未透传 `X-Forwarded-Proto`）。
+
+注：此功能需要 v3.5.0 之后的 swanlab-server 镜像；部分浏览器（如 Chrome）对第三方 cookie 有更严格的限制，如遇仍无法保持登录的情况，请在 [SwanLab-Server#1148](https://github.com/SwanHubX/SwanLab-Server/issues/1148) 反馈。
+
 ### 执行结果
 
 脚本执行成功后，将会创建一个 `swanlab/` 目录，并在目录下生成两个文件：
