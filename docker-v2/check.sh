@@ -4,7 +4,7 @@
 # 用法: ./check.sh [运行目录(默认 ./swanlab)]
 #
 # 只读巡检脚本：环境版本、运行目录完整性、配置校验、
-# 渲染检查、项目一致性、vector 单实例校验、容器健康状态、磁盘余量
+# 渲染检查、项目一致性、vector 双实例校验、容器健康状态、磁盘余量
 # 退出码: 0 = 无 FAIL（允许有 WARN）；1 = 存在 FAIL；2 = 运行目录不存在
 # 供运维日常与 CI 复用
 set -o pipefail
@@ -105,20 +105,51 @@ else
   pass_ "项目 swanlab 无外来容器（无混栈）"
 fi
 
-# ---------------- 6. vector 单实例检查 ----------------
-# vector 磁盘缓冲依赖单实例独占数据目录（${DATA_PATH}/vector）
-# 多副本共享挂载目录会导致数据异常，需检查副本数
-echo "${bold}----- 6. vector 单实例 -----${reset}"
-VECTOR_N=$(vector_replica_count "$TARGET_DIR")
-if [ "$VECTOR_N" -gt 1 ]; then
-  fail_ "检测到 ${VECTOR_N} 个 vector 容器：vector 不支持多实例水平扩展，多副本共享数据目录会导致指标异常"
-  fail_ "   恢复单实例命令: cd ${TARGET_DIR} && docker compose up -d --scale vector=1"
-  fail_ '   如缓冲异常，停止服务后清空 ${DATA_PATH}/vector 目录再启动'
-elif [ "$VECTOR_N" -eq 1 ]; then
-  pass_ "vector 单实例（1 个容器）"
-else
-  warn_ "未发现 vector 容器（服务未启动或已 down）"
+# ---------------- 6. vector 双实例检查 ----------------
+echo "${bold}----- 6. vector 双实例 -----${reset}"
+VECTOR_SOURCE_1=""; VECTOR_SOURCE_2=""; VECTOR_COUNT_1=""; VECTOR_COUNT_2=""
+for vector_service in vector-1 vector-2; do
+  if ! vector_n=$(vector_replica_count "$TARGET_DIR" "$vector_service"); then
+    fail_ "无法查询 ${vector_service}，请检查运行目录是否已升级为双实例配置"
+    continue
+  fi
+  case "$vector_service" in vector-1) VECTOR_COUNT_1="$vector_n" ;; vector-2) VECTOR_COUNT_2="$vector_n" ;; esac
+  if [ "$vector_n" -eq 0 ]; then
+    warn_ "未发现 ${vector_service} 容器"
+  elif [ "$vector_n" -ne 1 ]; then
+    fail_ "${vector_service} 有 ${vector_n} 个容器；每个服务必须独占缓冲目录，禁止 --scale"
+  else
+    vector_id=$(cd "$TARGET_DIR" && docker compose ps -aq "$vector_service")
+    vector_source=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/vector"}}{{.Source}}{{end}}{{end}}' "$vector_id")
+    if [ -z "$vector_source" ]; then
+      fail_ "${vector_service} 未挂载 /var/lib/vector"
+    else
+      pass_ "${vector_service} 单进程挂载缓冲目录: ${vector_source}"
+      case "$vector_service" in vector-1) VECTOR_SOURCE_1="$vector_source" ;; vector-2) VECTOR_SOURCE_2="$vector_source" ;; esac
+    fi
+  fi
+done
+if [ -n "$VECTOR_COUNT_1" ] && [ -n "$VECTOR_COUNT_2" ] && \
+    [ "$((VECTOR_COUNT_1 + VECTOR_COUNT_2))" -gt 0 ] && \
+    { [ "$VECTOR_COUNT_1" -ne 1 ] || [ "$VECTOR_COUNT_2" -ne 1 ]; }; then
+  fail_ "Vector 双实例不完整，每个服务都应恰好有一个容器"
 fi
+if [ -n "$VECTOR_SOURCE_1" ] && [ -n "$VECTOR_SOURCE_2" ]; then
+  if [ "$VECTOR_SOURCE_1" = "$VECTOR_SOURCE_2" ] || [ "$VECTOR_SOURCE_1" -ef "$VECTOR_SOURCE_2" ]; then
+    fail_ "两个 Vector 实例挂载了同一个数据目录，必须停写并修正挂载，保留所有 WAL"
+  else
+    pass_ "两个 Vector 实例的数据目录互相独立"
+  fi
+fi
+vector_project=$(compose_project_name "$TARGET_DIR")
+legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=${vector_project}" --filter 'label=com.docker.compose.service=vector')
+for legacy_id in $legacy_ids; do
+  if [ "$(docker inspect --format '{{.State.Running}}' "$legacy_id")" = "true" ]; then
+    fail_ "旧 vector 容器仍在运行，可能占用实例 1 的 WAL；请按升级流程停止旧 writer"
+  else
+    warn_ "旧 vector 容器已停止并保留；vector/ 是实例 1 的有效数据目录，请勿清空"
+  fi
+done
 
 # ---------------- 7. 容器健康 ----------------
 echo "${bold}----- 7. 容器状态 -----${reset}"
@@ -158,12 +189,12 @@ while [ ! -d "$p" ] && [ "$p" != "/" ]; do p=$(dirname "$p"); done
 avail_kb=$(df -kP "$p" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "$avail_kb" ]; then
   avail_gib=$((avail_kb / 1024 / 1024))
-  if [ "$avail_gib" -ge 40 ]; then
-    pass_ "磁盘剩余 ${avail_gib}GiB（≥ 40GiB，满足运行余量要求）"
-  elif [ "$avail_gib" -ge 10 ]; then
-    warn_ "磁盘剩余 ${avail_gib}GiB（< 40GiB，低于推荐余量）"
+  if [ "$avail_gib" -ge "$VECTOR_DISK_RECOMMENDED_GIB" ]; then
+    pass_ "磁盘剩余 ${avail_gib}GiB（≥ ${VECTOR_DISK_RECOMMENDED_GIB}GiB，满足双实例缓冲与运行余量）"
+  elif [ "$avail_gib" -ge "$VECTOR_DISK_MIN_FREE_GIB" ]; then
+    warn_ "磁盘剩余 ${avail_gib}GiB（< ${VECTOR_DISK_RECOMMENDED_GIB}GiB，低于推荐余量）"
   else
-    fail_ "磁盘剩余 ${avail_gib}GiB（< 10GiB，磁盘空间不足）"
+    fail_ "磁盘剩余 ${avail_gib}GiB（< ${VECTOR_DISK_MIN_FREE_GIB}GiB，磁盘空间不足）"
   fi
 else
   warn_ "无法检测 ${p} 的磁盘剩余（df 无输出）"

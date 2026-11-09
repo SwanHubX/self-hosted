@@ -9,6 +9,7 @@
 #   --rollback <dir>    从 backups/pre-upgrade-<ts>/ 回滚 compose / .env / config
 #                       （数据库快照按需手动导入，脚本会给出命令）
 #   --yes | -y          跳过交互确认
+#   --ingestion-paused   声明已暂停外部上报并完成在途请求对账，升级与回滚必须提供
 #
 # 数据库迁移由一次性服务 server-migrate 在 server 副本启动前执行。
 #
@@ -25,15 +26,17 @@ ROLLBACK_DIR=""
 TARGET_VERSION=""
 ASSUME_YES=0
 OFFLINE=0
+INGESTION_PAUSED=0
 
 POSITIONAL=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) CHECK_ONLY=1; shift ;;
-    --rollback) ROLLBACK_DIR="${2:-}"; shift 2 ;;
-    --version) TARGET_VERSION="${2:-}"; shift 2 ;;
+    --rollback) [ -n "${2:-}" ] || die "--rollback 需要备份目录"; ROLLBACK_DIR="$2"; shift 2 ;;
+    --version) [ -n "${2:-}" ] || die "--version 需要版本号"; TARGET_VERSION="$2"; shift 2 ;;
     --offline|-o) OFFLINE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
+    --ingestion-paused) INGESTION_PAUSED=1; shift ;;
     -*) die "未知选项: $1" ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
@@ -43,13 +46,32 @@ done
 echo "${bold}===== SwanLab Self-Hosted（docker-v2）升级 =====${reset}"
 
 require_compose_v224
+[ "$CHECK_ONLY" -eq 0 ] || [ -z "$ROLLBACK_DIR" ] || die "--check 与 --rollback 不能同时使用"
+[ -d "$TARGET_DIR" ] && TARGET_DIR=$(cd "$TARGET_DIR" && pwd -P)
+
+if [ "$CHECK_ONLY" -eq 0 ] || [ -n "$ROLLBACK_DIR" ]; then
+  [ "$INGESTION_PAUSED" -eq 1 ] \
+    || die "请先暂停外部指标上报并完成在途请求对账，再加 --ingestion-paused；--yes 不替代维护窗口要求"
+fi
 
 # ---------------- --rollback 分支 ----------------
 if [ -n "$ROLLBACK_DIR" ]; then
   [ -d "$ROLLBACK_DIR" ] || die "回滚目录不存在: ${ROLLBACK_DIR}"
+  ROLLBACK_DIR=$(cd "$ROLLBACK_DIR" && pwd -P)
   { [ -f "${ROLLBACK_DIR}/docker-compose.yaml" ] && [ -f "${ROLLBACK_DIR}/.env" ]; } \
     || die "回滚目录缺少 docker-compose.yaml 或 .env（应为 backups/pre-upgrade-<ts>/）"
   [ -f "${TARGET_DIR}/.env" ] || die "目标目录未安装（缺少 ${TARGET_DIR}/.env），请先运行 install.sh"
+
+  require_docker
+  validate_env "${ROLLBACK_DIR}/.env" || die "备份 .env 校验失败，当前配置未修改"
+  (cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" --env-file "${ROLLBACK_DIR}/.env" \
+    -f "${ROLLBACK_DIR}/docker-compose.yaml" config --quiet) \
+    || die "备份 compose 无法渲染，当前配置未修改"
+  log_info "暂停 House，检查当前 Vector 缓冲后再回滚..."
+  pause_house "$TARGET_DIR" || die "暂停 House 失败，当前配置未修改"
+  wait_vector_buffers_drained "$TARGET_DIR" \
+    || die "无法确认缓冲已排空，回滚中止；配置与 WAL 保留，House 保持暂停"
+  stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，当前配置未修改"
 
   # 回滚前先快照当前状态（防回滚本身出错）
   PRE_ROLLBACK="${TARGET_DIR}/backups/pre-rollback-$(date +%Y%m%d%H%M%S)"
@@ -103,14 +125,14 @@ if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
   log_warn "当前版本与目标版本相同（重跑迁移与重建，不改变版本）"
 fi
 
-# 检查数据目录所在分区磁盘空间（阈值 40GiB）
+# 检查双实例缓冲与运行余量
 DATA_PATH_V=$(env_get DATA_PATH "${TARGET_DIR}/.env")
 [ -z "$DATA_PATH_V" ] && DATA_PATH_V="./data"
 case "$DATA_PATH_V" in
   /*) CHECK_PATH="$DATA_PATH_V" ;;
   *)  CHECK_PATH="${TARGET_DIR}/${DATA_PATH_V}" ;;
 esac
-check_disk_space "$CHECK_PATH" 40 warn
+check_disk_space "$CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" warn
 
 # 配置校验与渲染
 validate_env "${TARGET_DIR}/.env" || die "当前 .env 防呆校验未通过，请先修正再升级"
@@ -123,6 +145,10 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
   log_ok "--check 体检完成，未做任何变更"
   exit 0
 fi
+
+(cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" --env-file "${TARGET_DIR}/.env" \
+  -f "${SCRIPT_DIR}/docker-compose.yaml" config --quiet) \
+  || die "新模板无法渲染，升级中止，当前配置与服务未修改"
 
 # 正式升级需要 daemon；--check 只读路径已在上方退出（校验/渲染均不依赖 daemon）
 require_docker
@@ -168,6 +194,11 @@ case ",$PROFILES," in
     ;;
 esac
 
+# 先按现有配置停写，避免旧 service 在配置更换后继续占用 WAL。
+log_info "暂停 House 并停止当前 Vector writer；数据目录和停止容器均保留..."
+pause_house "$TARGET_DIR" || die "暂停 House 失败，升级中止"
+stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，升级中止，尚未替换配置"
+
 # ---------------- 3. 铺设新模板与更新版本号 ----------------
 cp -f "${SCRIPT_DIR}/docker-compose.yaml" "${TARGET_DIR}/"
 rm -rf "${TARGET_DIR}/config"
@@ -192,6 +223,13 @@ pull_images "${TARGET_DIR}" "${OFFLINE}" \
   || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --v2 --save 打包，在目标机 docker load 后加 --offline 重试）"
 
 # ---------------- 5. 重建服务 ----------------
+# 先确认已有 WAL 完成恢复，再让 House 发送新事件。
+log_info "先恢复网关与 Vector，确认旧缓冲排空..."
+(cd "$TARGET_DIR" && docker compose up -d --wait --wait-timeout 180 gateway vector-1 vector-2) \
+  || die "网关或 Vector 未恢复健康，House 保持暂停；配置快照与 WAL 均已保留"
+wait_vector_buffers_drained "$TARGET_DIR" \
+  || die "旧缓冲尚未恢复完成，House 保持暂停；请恢复下游后重试升级"
+
 # 启动服务；数据库迁移由 server-migrate 在 server 副本启动前完成
 log_info "重建服务（docker compose up -d）..."
 (cd "${TARGET_DIR}" && docker compose up -d) \

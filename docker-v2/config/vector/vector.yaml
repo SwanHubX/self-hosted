@@ -1,4 +1,4 @@
-# Vector 配置（单实例运行）
+# Vector 共享配置；每个实例必须独占自己的 data_dir 挂载目录
 # 数据流：接收 HTTP 指标，按类型分流至 scalar、media、log 表并写入 ClickHouse
 # ClickHouse 连接参数由环境变量注入
 

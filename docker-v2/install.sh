@@ -78,15 +78,15 @@ else
 fi
 
 # ---- 3.5 磁盘预检 ----
-# 检查数据目录所在磁盘剩余空间（阈值 40GiB）
+# 检查双实例缓冲与运行余量
 case "$DATA_PATH" in
   /*) DISK_CHECK_PATH="$DATA_PATH" ;;
   *)  DISK_CHECK_PATH="${RUN_DIR}/${DATA_PATH}" ;;
 esac
 if [ "$SKIP_INPUT" -eq 1 ]; then
-  check_disk_space "$DISK_CHECK_PATH" 40 warn
+  check_disk_space "$DISK_CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" warn
 else
-  check_disk_space "$DISK_CHECK_PATH" 40 confirm
+  check_disk_space "$DISK_CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" confirm
 fi
 
 # 外接参数收集
@@ -185,6 +185,7 @@ MAX_METRICS_PER_COPY=20000
 COMPOSE_PROFILES=${PROFILE_LIST}
 
 # ---- 业务副本数（单机资源紧张可设为 1）----
+# Vector 固定两个服务，各自独占缓冲目录，禁止使用 --scale。
 SERVER_REPLICAS=2
 AUTH_REPLICAS=2
 HOUSE_REPLICAS=2
@@ -264,4 +265,4 @@ echo "   - 调整副本数: 编辑 ${RUN_DIR}/.env 的 *_REPLICAS 后 docker com
 echo "   - 升级版本:   ${SCRIPT_DIR}/upgrade.sh ${RUN_DIR}"
 echo "   - 日常巡检:   ${SCRIPT_DIR}/check.sh ${RUN_DIR}（docker compose ps && docker compose logs -f <service>）"
 echo "   - 存量迁移:   ${SCRIPT_DIR}/migrate.sh <旧版 docker 运行目录>（旧版单实例架构 → docker-v2）"
-echo "⚠️  注意：vector 为单实例模式，不支持扩容多副本"
+echo "⚠️  Vector 固定双实例，经网关分发；vector / vector-2 缓冲目录各自独占，禁止对两个服务使用 --scale"
