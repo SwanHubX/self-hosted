@@ -1,7 +1,7 @@
 # SwanLab Self-Hosted（docker-v2）
 # 组件说明：
 #   - gateway：Traefik 3.6 网关，docker provider 动态发现服务副本，file provider 配置中间件与路由屏蔽
-#   - vector：指标汇聚缓冲，接收 house 数据写入 ClickHouse，单实例运行
+#   - vector：默认双实例（vector-1 / vector-2）接收 house 指标，经内部网关分发，各自独占磁盘缓冲目录
 #   - 数据层：PostgreSQL、Redis、ClickHouse、MinIO 通过 COMPOSE_PROFILES 控制启停，支持外接实例
 #   - 业务服务：server、auth、house、next、cloud 支持多副本伸缩
 #   - server-migrate：一次性数据库迁移服务，在 server 服务启动前串行执行数据库变更
@@ -22,6 +22,43 @@ x-common: &common
     options:
       max-size: 50m
       max-file: "3"
+
+x-vector: &vector
+  <<: *common
+  image: repo.swanlab.cn/public/vector:0.51.1-debian
+  command: ["--config", "/etc/vector/vector.yaml"]
+  stop_grace_period: 60s
+  depends_on:
+    clickhouse:
+      condition: service_healthy
+      required: false
+  environment:
+    CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
+    CLICKHOUSE_PORT: ${CLICKHOUSE_HTTP_PORT:-8123}
+    CLICKHOUSE_USER: ${CLICKHOUSE_USER:-swanlab}
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-app}
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.swanlab-vector.rule=Path(`/vector`) || PathPrefix(`/vector/`)"
+    - "traefik.http.routers.swanlab-vector.entrypoints=internal"
+    - "traefik.http.routers.swanlab-vector.service=swanlab-vector"
+    - "traefik.http.routers.swanlab-vector.middlewares=swanlab-vector-strip@docker"
+    - "traefik.http.middlewares.swanlab-vector-strip.stripprefix.prefixes=/vector"
+    - "traefik.http.services.swanlab-vector.loadbalancer.server.port=8686"
+    - "traefik.http.services.swanlab-vector.loadbalancer.healthcheck.path=/ping"
+    - "traefik.http.services.swanlab-vector.loadbalancer.healthcheck.interval=5s"
+    - "traefik.http.services.swanlab-vector.loadbalancer.healthcheck.timeout=2s"
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8686;
+        printf "GET /ping HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3;
+        IFS= read -r status <&3; [[ "$$status" == *" 200 "* ]]'
+    interval: 10s
+    timeout: 5s
+    retries: 3
 
 services:
   # ---------------- 网关 ----------------
@@ -57,30 +94,18 @@ services:
       - gateway-plugins:/plugins
 
   # ---------------- 指标管道 ----------------
-  # 磁盘缓冲数据目录为单写模式，保持单实例运行
-  vector:
-    <<: *common
-    image: repo.swanlab.cn/public/vector:0.51.1-debian
-    command: ["--config", "/etc/vector/vector.yaml"]
-    depends_on:
-      # 等待 ClickHouse 健康后启动；外接 ClickHouse 时跳过
-      clickhouse:
-        condition: service_healthy
-        required: false
+  # 每个进程独占 WAL；vector-1 沿用原目录，升级时无需搬移数据
+  vector-1:
+    <<: *vector
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - ${DATA_PATH:-./data}/vector:/var/lib/vector
-    environment:
-      CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
-      CLICKHOUSE_PORT: ${CLICKHOUSE_HTTP_PORT:-8123}
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-swanlab}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
-      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-app}
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8686'"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+
+  vector-2:
+    <<: *vector
+    volumes:
+      - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ${DATA_PATH:-./data}/vector-2:/var/lib/vector
 
   # ---------------- 数据层（独立 profile，外接某项即从 COMPOSE_PROFILES 移除） ----------------
   postgres:
@@ -301,7 +326,11 @@ services:
       redis:
         condition: service_healthy
         required: false
-      vector:
+      gateway:
+        condition: service_healthy
+      vector-1:
+        condition: service_healthy
+      vector-2:
         condition: service_healthy
       # 等待 MinIO 桶创建完成；外接 S3 时跳过
       minio-init:
@@ -318,7 +347,7 @@ services:
     environment:
       - SH_VECTOR_ENABLE=true
       - SH_VECTOR_TIMEOUT=30s
-      - SH_VECTOR_URL=http://vector:8686
+      - SH_VECTOR_URL=http://gateway:8080/vector
       - SH_API_PREFIX=/api/house
       - SH_DISTRIBUTED_ENABLE=true
       # 通过网关 internal 入口调用 server 服务，由网关负责实例健康调度

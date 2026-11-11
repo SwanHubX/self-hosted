@@ -172,7 +172,7 @@ if [ -n "$TO_DIR" ]; then
 fi
 
 # ---------------- 5. 磁盘预检 ----------------
-# 原地迁移预留 40GiB 运行余量；--to 模式额外计入数据目录体积
+# 预留双实例缓冲与运行余量；--to 模式额外计入数据目录体积
 case "$DATA_PATH_V" in
   /*) DISK_CHECK_PATH="$DATA_PATH_V" ;;
   *)  DISK_CHECK_PATH="${LEGACY_ABS}/${DATA_PATH_V}" ;;
@@ -180,11 +180,11 @@ esac
 if [ -n "$TO_DIR" ]; then
   USED_KB=$(du -sk "$DISK_CHECK_PATH" 2>/dev/null | awk '{print $1}')
   [ -n "$USED_KB" ] || die "无法统计数据目录用量: ${DISK_CHECK_PATH}"
-  NEED_GIB=$(( USED_KB / 1024 / 1024 + 40 ))
+  NEED_GIB=$(( (USED_KB + 1048575) / 1024 / 1024 + VECTOR_DISK_RECOMMENDED_GIB ))
   log_info "--to 档磁盘预检：数据用量 $(( USED_KB / 1024 / 1024 ))GiB，要求剩余 ≥ ${NEED_GIB}GiB（数据副本 + 运行余量）"
   check_disk_space "$TO_DIR" "$NEED_GIB" confirm
 else
-  check_disk_space "$DISK_CHECK_PATH" 40 confirm
+  check_disk_space "$DISK_CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" confirm
 fi
 
 # ---------------- 6. 迁移摘要与确认 ----------------

@@ -4,7 +4,7 @@
 # 兼容 bash 3.2（macOS 系统自带），不使用 mapfile / 关联数组等 bash4 特性
 
 # ---------------- 输出 ----------------
-if command -v tput >/dev/null 2>&1; then
+if [ -t 1 ] && command -v tput >/dev/null 2>&1 && [ "$(tput colors 2>/dev/null)" -ge 8 ]; then
   red=$(tput setaf 1)
   green=$(tput setaf 2)
   yellow=$(tput setaf 3)
@@ -21,6 +21,10 @@ log_err()  { echo "❌ ${red}$*${reset}" >&2; }
 die()      { log_err "$@"; exit 1; }
 
 # ---------------- 环境检查 ----------------
+
+# 每个实例三个 10GiB disk buffer；默认两实例共 60GiB，另留运行余量，实例增加时需上调。
+VECTOR_DISK_RECOMMENDED_GIB=70
+VECTOR_DISK_MIN_FREE_GIB=10
 
 # 检查 Docker 是否安装且运行
 require_docker() {
@@ -238,7 +242,7 @@ validate_env() {
 env_set() {
   local key="$1" value="$2" file="$3" tmp
   [ -f "$file" ] || die ".env 不存在: ${file}"
-  tmp=$(mktemp) || die "mktemp 失败"
+  tmp=$(mktemp "${file}.tmp.XXXXXX") || die "mktemp 失败"
   grep -vE "^${key}=" "$file" > "$tmp" 2>/dev/null || true
   printf '%s=%s\n' "$key" "$value" >> "$tmp"
   cat "$tmp" > "$file" || { rm -f "$tmp"; die "写入 ${file} 失败"; }
@@ -271,7 +275,7 @@ check_disk_space() {
     log_ok "磁盘剩余空间: ${avail_gib}GiB（要求 ≥ ${min_gib}GiB）"
     return 0
   fi
-  local reason="vector 磁盘缓冲与数据库同盘，空间不足可能影响服务运行"
+  local reason="Vector 缓冲每个实例 30GiB（默认两实例 60GiB），还需预留运行空间和数据服务增长空间"
   case "$mode" in
     strict)
       die "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB：${reason}——请更换数据路径或清理磁盘后重试"
@@ -303,11 +307,137 @@ compose_project_name() {
   printf '%s\n' "$name"
 }
 
-# 统计 vector 容器数量，用于单实例检查
+# 识别当前配置中的 Vector 服务：vector-N，兼容单实例配置回滚。
+vector_services() {
+  local services
+  services=$(cd "$1" && docker compose config --services) || return 1
+  printf '%s\n' "$services" | awk '/^vector(-[0-9]+)?$/ {print}' | sort
+}
+
+# 分别检查每个 service，避免总数掩盖实例缺失或误扩容。
 vector_replica_count() {
-  local run_dir="$1" n
-  n=$( (cd "$run_dir" && docker compose ps -aq vector 2>/dev/null) | grep -c . )
-  printf '%s\n' "${n:-0}"
+  local ids
+  ids=$(cd "$1" && docker compose ps -aq "$2") || return 1
+  printf '%s\n' "$ids" | awk 'NF {n++} END {print n+0}'
+}
+
+pause_house() {
+  (cd "$1" && docker compose stop --timeout 60 swanlab-house) || return 1
+}
+
+# 使用当前配置停止 writer，配置替换后不再依赖旧 service 的存在。
+stop_vector_services() {
+  local run_dir="$1" services service ids id running project
+  services=$(vector_services "$run_dir") || return 1
+  [ -n "$services" ] || { log_err "配置中未找到 Vector 服务"; return 1; }
+  (cd "$run_dir" && docker compose stop --timeout 60 $services) || return 1
+  for service in $services; do
+    ids=$(cd "$run_dir" && docker compose ps -aq "$service") || return 1
+    for id in $ids; do
+      running=$(docker inspect --format '{{.State.Running}}' "$id") || return 1
+      [ "$running" = "false" ] || { log_err "${service} 仍在运行，禁止切换 WAL writer"; return 1; }
+    done
+  done
+  # 配置更换失败后重试时，旧 writer 可能已经成为 orphan；按项目标签一并停止。
+  project=$(compose_project_name "$run_dir") || return 1
+  ids=$(docker ps -q --filter "label=com.docker.compose.project=${project}") || return 1
+  for id in $ids; do
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id") || return 1
+    case "$service" in
+      vector|vector-[0-9]*) ;;
+      *) continue ;;
+    esac
+    docker stop --time 60 "$id" >/dev/null || return 1
+    running=$(docker inspect --format '{{.State.Running}}' "$id") || return 1
+    [ "$running" = "false" ] || return 1
+  done
+}
+
+# 仅供具有 Bash 的 Vector Debian 镜像使用；不输出配置或凭据。
+vector_http_get() {
+  local run_dir="$1" service="$2" port="$3" path="$4"
+  (cd "$run_dir" && docker compose exec -T "$service" timeout 10 bash -ec '
+    exec 3<>/dev/tcp/127.0.0.1/"$1"
+    printf "GET %s HTTP/1.0\r\nHost: localhost\r\n\r\n" "$2" >&3
+    IFS= read -r -t 5 status <&3
+    [[ "$status" == *" 200 "* ]]
+    cr=$(printf "\r")
+    while IFS= read -r -t 5 header <&3; do [[ "$header" == "$cr" ]] && break; done
+    [[ "$header" == "$cr" ]]
+    while :; do
+      line=
+      if IFS= read -r -t 5 line <&3; then
+        printf "%s\n" "$line"
+      else
+        result=$?
+        [ -z "$line" ] || printf "%s\n" "$line"
+        [ "$result" -eq 1 ] || exit 1
+        break
+      fi
+    done
+  ' bash "$port" "$path")
+}
+
+vector_downstream_ready() {
+  (cd "$1" && docker compose exec -T "$2" timeout 10 bash -ec '
+    exec 3<>/dev/tcp/"$CLICKHOUSE_HOST"/"$CLICKHOUSE_PORT"
+    printf "GET /ping HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3
+    IFS= read -r -t 5 status <&3
+    [[ "$status" == *" 200 "* ]]
+  ')
+}
+
+# disk buffer 的用量在首次写入前可能不存在；已注册容量且没有接收记录表示空缓冲。
+# 已接收数据时必须同时具备事件与字节用量；缺失或非法样本不能作为排空依据。
+vector_buffers_empty() {
+  awk '
+    /^(vector_)?buffer_(max_byte_size|events|byte_size|received_events_total)\{/ && /buffer_type="disk"/ {
+      id=$0; sub(/^.*component_id="/, "", id); sub(/".*$/, "", id)
+      if (id !~ /^clickhouse_(scalar|media|log)$/) next
+      metric=$1; sub(/\{.*$/, "", metric); sub(/^vector_/, "", metric)
+      if ($2 !~ /^[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$/) invalid=1
+      key=id SUBSEP metric
+      if (key in values) invalid=1
+      values[key]=$2
+    }
+    END {
+      split("clickhouse_scalar clickhouse_media clickhouse_log", ids, " ")
+      for (i=1; i<=3; i++) {
+        id=ids[i]
+        if (values[id SUBSEP "buffer_max_byte_size"] <= 0) invalid=1
+        if (values[id SUBSEP "buffer_received_events_total"] > 0 &&
+            (!(id SUBSEP "buffer_events" in values) || !(id SUBSEP "buffer_byte_size" in values))) invalid=1
+        if (values[id SUBSEP "buffer_events"] != 0 || values[id SUBSEP "buffer_byte_size"] != 0) invalid=1
+      }
+      exit invalid ? 1 : 0
+    }'
+}
+
+# 内部指标每 30s 采样一次；两次零积压之间留出完整采样周期。
+wait_vector_buffers_drained() {
+  local run_dir="$1" timeout="${2:-180}" services service metrics elapsed=0 zeros=0 all_empty
+  services=$(vector_services "$run_dir") || return 1
+  [ -n "$services" ] || return 1
+  while [ "$elapsed" -le "$timeout" ]; do
+    all_empty=1
+    for service in $services; do
+      vector_http_get "$run_dir" "$service" 8686 /ping >/dev/null || {
+        log_err "${service} 无法响应，不能确认 WAL 已排空"; return 1;
+      }
+      vector_downstream_ready "$run_dir" "$service" || {
+        log_err "${service} 无法访问 ClickHouse，回滚前请先恢复下游"; return 1;
+      }
+      metrics=$(vector_http_get "$run_dir" "$service" 9090 /metrics) || return 1
+      printf '%s\n' "$metrics" | vector_buffers_empty || all_empty=0
+    done
+    if [ "$all_empty" -eq 1 ]; then zeros=$((zeros + 1)); else zeros=0; fi
+    [ "$zeros" -ge 2 ] && { log_ok "Vector 缓冲已连续两次确认为空"; return 0; }
+    [ "$((elapsed + 35))" -le "$timeout" ] || break
+    sleep 35
+    elapsed=$((elapsed + 35))
+  done
+  log_err "Vector 缓冲尚未排空；保留配置和 WAL，恢复下游后重试"
+  return 1
 }
 
 # 检查 compose 配置渲染
@@ -371,7 +501,7 @@ compose_services_for_profiles() {
   local envfile="$1"
   local profiles
   profiles=$(env_get COMPOSE_PROFILES "$envfile")
-  local svcs="gateway vector swanlab-server swanlab-auth swanlab-house swanlab-cloud swanlab-next"
+  local svcs="gateway swanlab-server swanlab-auth swanlab-house swanlab-cloud swanlab-next"
   case ",$profiles," in *,postgres,*) svcs="$svcs postgres" ;; esac
   case ",$profiles," in *,redis,*) svcs="$svcs redis" ;; esac
   case ",$profiles," in *,clickhouse,*) svcs="$svcs clickhouse" ;; esac
@@ -382,13 +512,21 @@ compose_services_for_profiles() {
 # 检查并等待各服务容器就绪与健康状态
 wait_services_healthy() {
   local run_dir="$1" timeout="${2:-300}"
-  local svcs failed svc ids id name status run_state info i
-  svcs=$(compose_services_for_profiles "$run_dir/.env")
+  local svcs vector_svcs failed svc ids id name status run_state info i
+  vector_svcs=$(vector_services "$run_dir") || return 1
+  svcs="$vector_svcs $(compose_services_for_profiles "$run_dir/.env")"
   failed=""
 
   for svc in $svcs; do
     ids=$( (cd "$run_dir" && docker compose ps -aq "$svc") )
     if [ -z "$ids" ]; then
+      case "$svc" in
+        vector|vector-1|vector-2)
+          log_err "Vector 服务 ${svc} 没有容器"
+          failed="$failed $svc"
+          continue
+          ;;
+      esac
       log_warn "服务 ${svc} 没有容器（profile 未激活或未启动），跳过健康等待"
       continue
     fi

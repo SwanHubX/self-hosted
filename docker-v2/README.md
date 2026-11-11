@@ -3,28 +3,31 @@
 Docker Compose 版私有化部署方案（v3.4.0）。
 
 ```text
-                        ┌────────────────────────────────────────────┐
  :8000 ──► gateway(traefik 3.6)  ── labels 路由，docker provider 感知副本
                         │  /api        /api/auth  /api/house   /
                         ▼      ▼           ▼          ▼         ▼
                   swanlab-server  swanlab-auth  swanlab-house  swanlab-next ──► swanlab-cloud
                     ×2 副本         ×2 副本       ×2 副本        ×2 副本        ×1 副本
-                        │                            │ HTTP log source
+                        │                            │ HTTP 指标
                         ▼                            ▼
-                 postgres / redis              vector（固定单实例）
-                 clickhouse / minio              │  disk buffer（DATA_PATH/vector）
-                 （独立 profile，可外接）          ▼
+                 postgres / redis              gateway:8080/vector
+                 clickhouse / minio              │  内部负载均衡 + /ping 探活
+                 （独立 profile，可外接）         ▼
+                                        vector-1          vector-2
+                                        data/vector/      data/vector-2/
+                                               │ 独立 disk buffer
+                                               ▼
                                               clickhouse
 ```
 
-与旧版 [`docker/`](../docker/README.md)（维护模式）的差异：vector 指标管道替代 fluent-bit 链路、标准 traefik 网关替代定制版、业务服务多副本（单机故障自动摘除）、数据层四件套可逐项外接。
+与旧版 [`docker/`](../docker/README.md) 的差异：Vector 默认双实例（`vector-1` / `vector-2`，可按 `vector-N` 扩展）指标管道、Traefik 内部负载均衡、业务服务多副本，以及可逐项外接的数据服务。
 
 ## 环境要求
 
 | 项 | 要求 | 说明 |
 |---|---|---|
 | Docker Compose | **≥ v2.24** | `depends_on.required` 长语法依赖此版本，所有脚本启动前校验 |
-| 磁盘剩余 | **≥ 40Gi**（数据目录所在分区） | vector 磁盘缓冲（3 个 sink 各 10GiB）且与数据服务同盘，预留 40GiB 运行余量 |
+| 磁盘剩余 | **建议 ≥ 70GiB**（数据目录所在分区） | 每个实例三个 10GiB 缓冲，默认两实例共 60GiB，另留至少 10GiB 运行余量；新增实例按 30GiB/个累加，ClickHouse 等数据增长需另行规划 |
 | 端口 | 默认 `8000` 可改 | gateway web 入口 |
 
 ## 快速开始
@@ -41,7 +44,11 @@ cd docker-v2
 
 > ⚠️ **本目录是模板目录，不可执行 `docker compose up -d`**：`.env.example` 的凭据字段为空，请通过 `install.sh` / `migrate.sh` 生成运行目录（默认 `swanlab/`）后操作。
 
-> ⚠️ **禁止 `--scale vector`**：vector 磁盘缓冲依赖单实例独占数据目录（`DATA_PATH/vector`），多副本共享挂载目录会导致数据异常。`check.sh` 会对此进行检查。
+> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的 WAL 目录，共享目录会产生排他锁冲突。默认 `vector-1` 使用 `DATA_PATH/vector`，`vector-2` 使用 `DATA_PATH/vector-2`；新增实例按 `vector-N` 命名并挂载独立目录。旧 `vector/` 目录继续有效，请勿清空。
+
+House 经 `gateway:8080/vector` 发送指标，网关移除 `/vector` 前缀后转发到 Vector 根路径。路由仅对 internal 入口开放，无用户鉴权中间件。Docker healthcheck 和 Traefik 主动探活均使用 `:8686/ping`；主动探活间隔 5 秒、超时 2 秒。`/ping` 表示 HTTP 服务存活，不能证明下游写入或缓冲容量正常，管理 API 保持关闭。
+
+冷启动要求网关与所有 Vector 实例都健康。运行中一个实例故障后，流量在检测窗口后转到其他实例；在途请求仍可能失败。各实例的 WAL 互不复制，故障实例的积压需要该实例恢复后重放。House 的异步发送与有限重试保持原行为，本方案不提供任意故障下的端到端零丢失保证。
 
 ## 部署形态与外接
 
@@ -81,25 +88,28 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 ## 日常运维
 
 ```bash
-./check.sh ./swanlab    # 只读巡检：环境/目录/防呆/渲染/混栈/vector 单实例/容器健康/磁盘
+./check.sh ./swanlab    # 只读巡检：环境/目录/防呆/渲染/项目一致性/vector 实例/容器健康/磁盘
 ```
 
 - 输出 `[PASS]/[WARN]/[FAIL]` 汇总，退出码 `0`=无 FAIL、`1`=有 FAIL、`2`=目录不存在——可接入 CI / 监控。
 - 日志与容器：`docker compose ps`、`docker compose logs -f <service>`。
-- 扩缩容：编辑 `.env` 副本数后 `up -d`（gateway 自动感知新副本并负载均衡）。**vector 除外**——固定单实例，原因见上。
+- 扩缩容：编辑 `.env` 业务副本数后 `up -d`，网关自动发现副本。Vector 默认双实例（`vector-1` / `vector-2`），新增实例按 `vector-N` 命名并独占缓冲目录。
 
 ## 升级与回滚
 
 ```bash
 ./upgrade.sh ./swanlab --check    # 只读体检：版本/磁盘/校验/渲染/容器状态
-./upgrade.sh ./swanlab            # 快照 → pg_dump → 铺新模板 → pull → up -d
-./upgrade.sh ./swanlab --version 3.5.0
-./upgrade.sh ./swanlab -o         # 离线
-./upgrade.sh ./swanlab --rollback ./swanlab/backups/pre-upgrade-<ts>/
+./upgrade.sh ./swanlab --ingestion-paused
+./upgrade.sh ./swanlab --version 3.5.0 --ingestion-paused
+./upgrade.sh ./swanlab -o --ingestion-paused         # 离线
+./upgrade.sh ./swanlab --rollback ./swanlab/backups/pre-upgrade-<ts>/ --ingestion-paused
 ```
 
 - 数据库 schema 由一次性服务 `server-migrate`（`prisma migrate deploy` + `node migrate.js`）在 server 副本启动前串行执行；迁移失败则中断启动过程。
 - 每次升级前自动 `pg_dump` 快照到 `backups/pre-upgrade-<ts>/`；`--rollback` 恢复配置（数据库快照按需手动导入，命令见其输出）。
+- 升级或回滚前必须在维护窗口暂停外部指标上报，并完成已接收请求的对账，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
+- 升级按当前配置暂停 House、停止旧 Vector writer，再更换模板。先启动网关与全部 Vector 实例，等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不重命名 WAL；旧停止容器保留，升级不会自动删除 orphan 容器或数据。
+- 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部 WAL，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
 
 ## 存量迁移（旧版 docker → docker-v2）
 
@@ -128,7 +138,7 @@ swanlab/
 ├── docker-compose.yaml   # 自本模板拷贝
 ├── config/               # traefik（静态+动态）/ vector 配置
 ├── backups/              # pre-migrate-<ts>/ 与 pre-upgrade-<ts>/、pre-configure-<ts>/ 快照
-└── data/                 # postgres/ redis/ clickhouse/ minio/ vector/
+└── data/                 # postgres/ redis/ clickhouse/ minio/ vector/ vector-2/（新增实例为 vector-N/）
 ```
 
 ## 旧 Docker Compose（< v2.24）环境
@@ -140,6 +150,6 @@ swanlab/
 ## FAQ
 
 - **OrbStack / rootless Docker 提示 socket 不存在？** `install.sh` 会自动探测并写入 `DOCKER_SOCKET_PATH`（如 `~/.orbstack/run/docker.sock`）；修改环境后 `check.sh` 会校验。
-- **磁盘 40Gi 阈值的依据？** vector 3 个 sink 各 10GiB 磁盘缓冲，与数据服务同盘，预留 40GiB 运行余量。
+- **磁盘 70GiB 建议的依据？** 每个 Vector 实例三个 sink 共 30GiB 缓冲，默认两实例 60GiB，另预留至少 10GiB 运行空间；新增实例按 30GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
 - **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
 - **如何切换镜像源 / 命名空间？** 镜像地址定义在 `docker-compose.yaml` 的 image 行。换平台或命名空间可编辑 compose 里的 image 行，离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。
