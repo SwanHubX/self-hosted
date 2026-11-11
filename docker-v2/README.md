@@ -90,7 +90,9 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 切换只改连接指向，不迁移数据（外接→本机 = 空库/空桶起步，本机→外接需预先准备实例与桶）。
 
-**存量 docker 版用户**：迁移与外接是两步操作——先 `migrate.sh`（固定全 local，数据完整），再 `configure.sh` 切外接。见下文「存量迁移」。
+配置写入后会询问是否执行 `docker compose up -d` 生效；确认后按配置差异重建受影响的服务（不是全量重启），未变更的容器保持运行。
+
+**存量 docker 版用户**：迁移与外接是两步操作——先 `migrate.sh`（固定全 local，数据完整），再 `configure.sh` 切外接。`configure.sh` 只适用于 docker-v2 运行目录，不能直接对旧版目录执行。见下文「存量迁移」。
 
 ## 配置说明（运行目录 `swanlab/.env`）
 
@@ -133,24 +135,29 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 ## 存量迁移（旧版 docker → docker-v2）
 
-旧版（fluent-bit 链路）用户平滑迁移入口。旧版为全内置形态。迁移完成后可通过 `configure.sh` 配置外接实例。
+适用于旧版 `docker/`（fluent-bit 指标链路）部署。迁移仅支持数据层四件套均为本机容器的形态；外接在迁移完成后通过 `configure.sh` 切换。
+
+参数是旧版运行目录，即旧 `install.sh` 生成的 `swanlab/`（包含 `.env`、`docker-compose.yaml`、`fluent-bit.conf`、`data/`），不是本仓库的 `docker/` 模板目录。旧栈需完整运行（数据层四件套 + 摄入链路）。
 
 ```bash
-./migrate.sh /opt/swanlab                       # 默认档：排空后原地升级（推荐）
+./migrate.sh /opt/swanlab                       # 旧运行目录在 /opt/swanlab
+./migrate.sh ../docker/swanlab                  # 旧版在 self-hosted/docker/ 下安装
 ./migrate.sh /opt/swanlab --to /data2/swanlab   # 排空后 rsync 数据到新目录，旧目录原样保留
 ./migrate.sh /opt/swanlab -o -y                 # 离线 + 免确认
 ```
 
 数据完整性：
 
-- pg/redis/CH/minio 数据目录原地保留，凭据沿用旧值；
-- schema 由 `server-migrate` 一次性服务在 server 副本启动前串行升级；
+- PostgreSQL / Redis / ClickHouse / MinIO 数据目录原地保留，凭据沿用旧值；
+- 数据库结构由 `server-migrate` 一次性服务在 server 副本启动前串行升级；
 - 配置快照仅备份文本（compose / `.env` / metadata）：迁移不修改数据卷，支持回滚；
 - 排空判定：断开摄入后轮询 ClickHouse 行数稳定；
 - 回滚：恢复旧 compose/`.env` 后 `up -d` 完成回退（收尾输出提供对应命令）；
-- 稳定运行后可清理旧卷：`docker volume rm swanlab-house fluent-bit`。
+- 确认不再需要回滚后，可清理旧卷：`docker volume rm swanlab-house fluent-bit`。
 
-## 运行目录结构
+## 运行目录结构（docker-v2）
+
+旧版 `docker/` 的运行目录同样是 `swanlab/`，但结构不同（含 `fluent-bit.conf`）；迁移时传入该目录，原地迁移后变为下结构。
 
 ```text
 swanlab/
@@ -173,5 +180,6 @@ swanlab/
 - **OrbStack / rootless Docker 提示 socket 不存在？** `install.sh` 会自动探测并写入 `DOCKER_SOCKET_PATH`（如 `~/.orbstack/run/docker.sock`）；修改环境后 `check.sh` 会校验。
 - **磁盘 90GiB 建议的依据？** 每个 Vector 实例四个 sink 共 40GiB 缓冲，默认两实例 80GiB，另预留至少 10GiB 运行空间；新增实例按 40GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
 - **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
+- **`configure.sh` 能直接用于旧版吗？** 不能，旧版先 `migrate.sh`；`configure.sh` 只切 docker-v2 的数据层连接，确认生效时只重建受影响的服务。
 - **新增 `vector-3` 后如何升级？** 将 `vector-3` 定义写入 `docker-compose.override.yaml`（见上文示例）；`upgrade.sh` 会按合并后的配置启动并排空所有 `vector-N`。直接改在 `docker-compose.yaml` 中的实例会在升级前被检测到并中止，避免模板覆盖后实例停摆、WAL 不参与排空。
 - **如何切换镜像源 / 命名空间？** 在运行目录的 `docker-compose.override.yaml` 中覆盖对应服务的 `image`，避免升级时被模板覆盖；离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。
