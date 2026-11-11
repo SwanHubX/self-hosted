@@ -1,6 +1,6 @@
 # SwanLab Self-Hosted（docker-v2）
 
-Docker Compose 版私有化部署方案（v3.4.0）。
+Docker Compose 版私有化部署方案（v3.6.0）。
 
 ```text
  :8000 ──► gateway(traefik 3.6)  ── labels 路由，docker provider 感知副本
@@ -27,7 +27,7 @@ Docker Compose 版私有化部署方案（v3.4.0）。
 | 项 | 要求 | 说明 |
 |---|---|---|
 | Docker Compose | **≥ v2.24** | `depends_on.required` 长语法依赖此版本，所有脚本启动前校验 |
-| 磁盘剩余 | **建议 ≥ 70GiB**（数据目录所在分区） | 每个实例三个 10GiB 缓冲，默认两实例共 60GiB，另留至少 10GiB 运行余量；新增实例按 30GiB/个累加，ClickHouse 等数据增长需另行规划 |
+| 磁盘剩余 | **建议 ≥ 90GiB**（数据目录所在分区） | 每个实例四个 10GiB 缓冲，默认两实例共 80GiB，另留至少 10GiB 运行余量；新增实例按 40GiB/个累加，ClickHouse 等数据增长需另行规划 |
 | 端口 | 默认 `8000` 可改 | gateway web 入口 |
 
 ## 快速开始
@@ -76,7 +76,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `SWANLAB_VERSION` | `3.4.0` | 业务镜像 tag（自动加 `v` 前缀）；compose 不设回退默认，丢失会在防呆校验拦截 |
+| `SWANLAB_VERSION` | `3.6.0` | 业务镜像 tag（自动加 `v` 前缀）；compose 不设回退默认，丢失会在防呆校验拦截 |
 | `EXPOSE_PORT` | `8000` | gateway 暴露端口 |
 | `DATA_PATH` | `./data` | 数据目录（相对运行目录或绝对路径） |
 | `DOCKER_SOCKET_PATH` | 自动探测 | rootless / OrbStack 与默认不同，install 自动写入 |
@@ -100,7 +100,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 ```bash
 ./upgrade.sh ./swanlab --check    # 只读体检：版本/磁盘/校验/渲染/容器状态
 ./upgrade.sh ./swanlab --ingestion-paused
-./upgrade.sh ./swanlab --version 3.5.0 --ingestion-paused
+./upgrade.sh ./swanlab --version 3.6.0 --ingestion-paused
 ./upgrade.sh ./swanlab -o --ingestion-paused         # 离线
 ./upgrade.sh ./swanlab --rollback ./swanlab/backups/pre-upgrade-<ts>/ --ingestion-paused
 ```
@@ -150,6 +150,6 @@ swanlab/
 ## FAQ
 
 - **OrbStack / rootless Docker 提示 socket 不存在？** `install.sh` 会自动探测并写入 `DOCKER_SOCKET_PATH`（如 `~/.orbstack/run/docker.sock`）；修改环境后 `check.sh` 会校验。
-- **磁盘 70GiB 建议的依据？** 每个 Vector 实例三个 sink 共 30GiB 缓冲，默认两实例 60GiB，另预留至少 10GiB 运行空间；新增实例按 30GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
+- **磁盘 90GiB 建议的依据？** 每个 Vector 实例四个 sink 共 40GiB 缓冲，默认两实例 80GiB，另预留至少 10GiB 运行空间；新增实例按 40GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
 - **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
 - **如何切换镜像源 / 命名空间？** 镜像地址定义在 `docker-compose.yaml` 的 image 行。换平台或命名空间可编辑 compose 里的 image 行，离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。

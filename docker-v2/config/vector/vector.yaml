@@ -1,5 +1,5 @@
 # Vector 共享配置；每个实例必须独占自己的 data_dir 挂载目录
-# 数据流：接收 HTTP 指标，按类型分流至 scalar、media、log 表并写入 ClickHouse
+# 数据流：接收 HTTP 指标，按类型分流至 scalar、media、histogram、log 表并写入 ClickHouse
 # ClickHouse 连接参数由环境变量注入
 
 data_dir: "/var/lib/vector"
@@ -49,6 +49,7 @@ transforms:
     route:
       scalar_stream: .type == "scalar"
       media_stream: .type == "media"
+      histogram_stream: .type == "histogram"
       log_stream: .type == "log"
 
   clean_scalar:
@@ -59,6 +60,11 @@ transforms:
   clean_media:
     type: remap
     inputs: ["metric_router.media_stream"]
+    source: 'del(.type); del(.ts_obj)'
+
+  clean_histogram:
+    type: remap
+    inputs: ["metric_router.histogram_stream"]
     source: 'del(.type); del(.ts_obj)'
 
   clean_log:
@@ -93,6 +99,25 @@ sinks:
     endpoint: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
     database: "${CLICKHOUSE_DB}"
     table: "media"
+    compression: gzip
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 10000
+      timeout_secs: 5
+    buffer:
+      type: disk
+      max_size: 10737418240
+      when_full: block
+
+  clickhouse_histogram:
+    type: clickhouse
+    inputs: ["clean_histogram"]
+    endpoint: "http://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}"
+    database: "${CLICKHOUSE_DB}"
+    table: "histogram"
     compression: gzip
     auth:
       strategy: basic

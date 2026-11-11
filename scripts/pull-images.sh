@@ -36,11 +36,11 @@ images_v2=(
   "repo.swanlab.cn/self-hosted/clickhouse-server:24.3"
   "repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-09-07T16-13-09Z"
   "repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-08-13T08-35-41Z"
-  "repo.swanlab.cn/self-hosted/swanlab-server:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-auth:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-house:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-cloud:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-next:v3.4.0"
+  "repo.swanlab.cn/self-hosted/swanlab-server:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-auth:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-house:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-cloud:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-next:v3.6.0"
 )
 
 V2=0

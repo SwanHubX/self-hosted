@@ -22,8 +22,8 @@ die()      { log_err "$@"; exit 1; }
 
 # ---------------- 环境检查 ----------------
 
-# 每个实例三个 10GiB disk buffer；默认两实例共 60GiB，另留运行余量，实例增加时需上调。
-VECTOR_DISK_RECOMMENDED_GIB=70
+# 每个实例四个 10GiB disk buffer；默认两实例共 80GiB，另留运行余量，实例增加时需上调。
+VECTOR_DISK_RECOMMENDED_GIB=90
 VECTOR_DISK_MIN_FREE_GIB=10
 
 # 检查 Docker 是否安装且运行
@@ -275,7 +275,7 @@ check_disk_space() {
     log_ok "磁盘剩余空间: ${avail_gib}GiB（要求 ≥ ${min_gib}GiB）"
     return 0
   fi
-  local reason="Vector 缓冲每个实例 30GiB（默认两实例 60GiB），还需预留运行空间和数据服务增长空间"
+  local reason="Vector 缓冲每个实例 40GiB（默认两实例 80GiB），还需预留运行空间和数据服务增长空间"
   case "$mode" in
     strict)
       die "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB：${reason}——请更换数据路径或清理磁盘后重试"
@@ -393,7 +393,7 @@ vector_buffers_empty() {
   awk '
     /^(vector_)?buffer_(max_byte_size|events|byte_size|received_events_total)\{/ && /buffer_type="disk"/ {
       id=$0; sub(/^.*component_id="/, "", id); sub(/".*$/, "", id)
-      if (id !~ /^clickhouse_(scalar|media|log)$/) next
+      if (id !~ /^clickhouse_(scalar|media|histogram|log)$/) next
       metric=$1; sub(/\{.*$/, "", metric); sub(/^vector_/, "", metric)
       if ($2 !~ /^[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$/) invalid=1
       key=id SUBSEP metric
@@ -401,8 +401,8 @@ vector_buffers_empty() {
       values[key]=$2
     }
     END {
-      split("clickhouse_scalar clickhouse_media clickhouse_log", ids, " ")
-      for (i=1; i<=3; i++) {
+      n = split("clickhouse_scalar clickhouse_media clickhouse_histogram clickhouse_log", ids, " ")
+      for (i = 1; i <= n; i++) {
         id=ids[i]
         if (values[id SUBSEP "buffer_max_byte_size"] <= 0) invalid=1
         if (values[id SUBSEP "buffer_received_events_total"] > 0 &&

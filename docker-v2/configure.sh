@@ -154,7 +154,7 @@ read -p "   切换到 (1=本机容器 2=外部实例, 回车=保持): " ANS
 case "$ANS" in
   1)
     if ! has_profile clickhouse; then
-      log_warn "外接 → 本机：将连接全新空库（外部指标数据不导回），scalar/media/log 表由 house 启动自动创建"
+      log_warn "外接 → 本机：将连接全新空库（外部指标数据不导回），scalar/media/histogram/log 表由 house 启动自动创建"
       read -p "   确认继续? (y/N): " C
       [[ "$C" =~ ^[Yy]$ ]] || ANS=""
     fi
