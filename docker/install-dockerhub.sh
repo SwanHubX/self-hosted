@@ -130,6 +130,91 @@ resolve_docker_socket_path
 
 mkdir -p swanlab && cd swanlab
 
+# fluent-bit 配置，挂载覆盖镜像内置的 /conf/fluent-bit.conf
+cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
+[SERVICE]
+    Flush           3
+    Parsers_File    /conf/parsers.conf
+[INPUT]
+    Name             tail
+    Tag              metrics
+    Path             ${LOG_PATH}
+    Read_from_Head   true
+    parser           sh_json
+    DB               /data/house.db
+    Buffer_Chunk_Size 25M
+    Buffer_Max_Size   100M
+[FILTER]
+    Name    rewrite_tag
+    Match   metrics
+    Rule    $type ^(log|scalar|media|histogram)$ metrics.$type false
+# log
+[OUTPUT]
+    Name                http
+    Match               metrics.log
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.log+FORMAT+JSONEachRow
+    Format              json_stream
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.log
+# scalar
+[OUTPUT]
+    Name                http
+    Match               metrics.scalar
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.scalar+FORMAT+JSONEachRow
+    Format              json_stream
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.scalar
+# media
+[OUTPUT]
+    Name                http
+    Match               metrics.media
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.media+FORMAT+JSONEachRow
+    Format              json_stream
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.media
+# histogram
+[OUTPUT]
+    Name                http
+    Match               metrics.histogram
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.histogram+FORMAT+JSONEachRow
+    Format              json_stream
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.histogram
+
+# null
+[OUTPUT]
+    Name    stdout
+    Match   metrics
+FLUENT_BIT_CONF
+
 # Select whether to use this configuration
 if [ ! -f .env ] && [ "$SKIP_INPUT" -eq 0 ]; then
   # ---- DATA_PATH
@@ -286,6 +371,7 @@ services:
     volumes:
       - fluent-bit:/data
       - swanlab-house:/metrics
+      - ./fluent-bit.conf:/conf/fluent-bit.conf:ro
     environment:
       LOG_PATH: /metrics/*.log
       CLICKHOUSE_HOST: clickhouse

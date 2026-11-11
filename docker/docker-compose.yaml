@@ -104,6 +104,7 @@ services:
     volumes:
       - fluent-bit:/data
       - swanlab-house:/metrics
+      - ./fluent-bit.conf:/conf/fluent-bit.conf:ro
     environment:
       LOG_PATH: /metrics/*.log
       CLICKHOUSE_HOST: clickhouse
