@@ -176,6 +176,122 @@ update_self_hosted_version() {
     " "$COMPOSE_FILE"
 }
 
+# 为 fluent-bit 挂载仓库内置配置，避免依赖镜像里的旧配置（缺少 histogram 分流）
+ensure_fluent_bit_conf() {
+    local compose_dir
+    compose_dir=$(dirname "$COMPOSE_FILE")
+    local conf_file="$compose_dir/fluent-bit.conf"
+    local tmp_conf
+    tmp_conf=$(mktemp) || return 1
+
+    cat > "$tmp_conf" <<'FLUENT_BIT_CONF'
+[SERVICE]
+    Flush           3
+    Parsers_File    /conf/parsers.conf
+[INPUT]
+    Name             tail
+    Tag              metrics
+    Path             ${LOG_PATH}
+    Read_from_Head   true
+    parser           sh_json
+    DB               /data/house.db
+    Buffer_Chunk_Size 25M
+    Buffer_Max_Size   100M
+[FILTER]
+    Name    rewrite_tag
+    Match   metrics
+    Rule    $type ^(log|scalar|media|histogram)$ metrics.$type false
+# log
+[OUTPUT]
+    Name                http
+    Match               metrics.log
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.log+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.log
+# scalar
+[OUTPUT]
+    Name                http
+    Match               metrics.scalar
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.scalar+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.scalar
+# media
+[OUTPUT]
+    Name                http
+    Match               metrics.media
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.media+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.media
+# histogram
+[OUTPUT]
+    Name                http
+    Match               metrics.histogram
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.histogram+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.histogram
+
+# null
+[OUTPUT]
+    Name    stdout
+    Match   metrics
+FLUENT_BIT_CONF
+
+    if ! cmp -s "$tmp_conf" "$conf_file"; then
+        mv "$tmp_conf" "$conf_file"
+        chmod 644 "$conf_file"
+    else
+        rm -f "$tmp_conf"
+    fi
+
+    if ! grep -q 'fluent-bit.conf:/conf/fluent-bit.conf' "$COMPOSE_FILE"; then
+        local tmp_file
+        tmp_file=$(mktemp) || return 1
+        awk -v line='      - ./fluent-bit.conf:/conf/fluent-bit.conf:ro' '
+            /^  fluent-bit:/ { infb=1; print; next }
+            infb && /^  [^[:space:]]/ { infb=0 }
+            { print }
+            infb && /^    volumes:[[:space:]]*$/ { print line; infb=0 }
+        ' "$COMPOSE_FILE" > "$tmp_file" && mv "$tmp_file" "$COMPOSE_FILE"
+        rm -f "$tmp_file"
+    fi
+}
+
 # migrate legacy image layout to the current ACR layout on repo.swanlab.cn:
 #   - all services live under the self-hosted/ namespace
 #   - infra images reuse the long-standing ACR repos:
@@ -219,8 +335,8 @@ read -p "Updating the container version will restart docker compose. Do you agre
 # Detect and use appropriate docker compose commands
 detect_and_run_docker_compose() {
     local -a compose_cmd=()
-    
-    # check docker compose 
+
+    # check docker compose
     if docker compose version &>/dev/null; then
         compose_cmd=(docker compose)
     # check docker-compose
@@ -231,7 +347,7 @@ detect_and_run_docker_compose() {
         echo "💡 Please install Docker Compose plugin or standalone docker-compose." >&2
         exit 1
     fi
-    
+
     echo "🚀 Starting Docker services with: ${compose_cmd[*]} -f \"$COMPOSE_FILE\" up -d"
     "${compose_cmd[@]}" -f "$COMPOSE_FILE" up -d
 }
@@ -242,9 +358,9 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     # migrate legacy registry (Tencent CCR -> repo.swanlab.cn), must run before version bumps
     migrate_registry
     # 更新设置页面版本号
-    update_self_hosted_version "3.4.0"
+    update_self_hosted_version "3.6.0"
     # update all containers version
-    update_version "3.4.0"
+    update_version "3.6.0"
     update_service_version "fluent-bit" "3.1"
     update_service_version "traefik" "3.1"
 
@@ -317,6 +433,8 @@ if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
     if ! grep -A 10 'swanlab-next:' "$COMPOSE_FILE" | grep -q '^    healthcheck:'; then
       add_health_check "swanlab-next" 3000
     fi
+    # 确保 fluent-bit 使用内置配置（含 histogram 分流）
+    ensure_fluent_bit_conf
     # restart docker-compose
     detect_and_run_docker_compose
 

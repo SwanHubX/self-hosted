@@ -20,10 +20,10 @@ images_legacy=(
   "repo.swanlab.cn/self-hosted/fluent-bit:3.1"
   "repo.swanlab.cn/self-hosted/minio/minio:RELEASE.2025-02-28T09-55-16Z"
   "repo.swanlab.cn/self-hosted/minio/mc:RELEASE.2025-04-08T15-39-49Z"
-  "repo.swanlab.cn/self-hosted/swanlab-server:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-house:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-cloud:v3.4.0"
-  "repo.swanlab.cn/self-hosted/swanlab-next:v3.4.0"
+  "repo.swanlab.cn/self-hosted/swanlab-server:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-house:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-cloud:v3.6.0"
+  "repo.swanlab.cn/self-hosted/swanlab-next:v3.6.0"
 )
 
 # docker-v2 架构镜像

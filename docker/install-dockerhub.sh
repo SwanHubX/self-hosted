@@ -130,6 +130,95 @@ resolve_docker_socket_path
 
 mkdir -p swanlab && cd swanlab
 
+# fluent-bit 配置，挂载覆盖镜像内置的 /conf/fluent-bit.conf
+cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
+[SERVICE]
+    Flush           3
+    Parsers_File    /conf/parsers.conf
+[INPUT]
+    Name             tail
+    Tag              metrics
+    Path             ${LOG_PATH}
+    Read_from_Head   true
+    parser           sh_json
+    DB               /data/house.db
+    Buffer_Chunk_Size 25M
+    Buffer_Max_Size   100M
+[FILTER]
+    Name    rewrite_tag
+    Match   metrics
+    Rule    $type ^(log|scalar|media|histogram)$ metrics.$type false
+# log
+[OUTPUT]
+    Name                http
+    Match               metrics.log
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.log+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.log
+# scalar
+[OUTPUT]
+    Name                http
+    Match               metrics.scalar
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.scalar+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.scalar
+# media
+[OUTPUT]
+    Name                http
+    Match               metrics.media
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.media+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.media
+# histogram
+[OUTPUT]
+    Name                http
+    Match               metrics.histogram
+    Host                ${CLICKHOUSE_HOST}
+    Port                ${CLICKHOUSE_PORT}
+    URI                 /?query=INSERT+INTO+app.histogram+FORMAT+JSONEachRow
+    Format              json_stream
+    Compress gzip
+    json_date_key       timestamp
+    json_date_format    java_sql_timestamp
+    http_user           ${CLICKHOUSE_USER}
+    http_passwd         ${CLICKHOUSE_PASS}
+[OUTPUT]
+    Name  counter
+    Match metrics.histogram
+
+# null
+[OUTPUT]
+    Name    stdout
+    Match   metrics
+FLUENT_BIT_CONF
+
 # Select whether to use this configuration
 if [ ! -f .env ] && [ "$SKIP_INPUT" -eq 0 ]; then
   # ---- DATA_PATH
@@ -286,6 +375,7 @@ services:
     volumes:
       - fluent-bit:/data
       - swanlab-house:/metrics
+      - ./fluent-bit.conf:/conf/fluent-bit.conf:ro
     environment:
       LOG_PATH: /metrics/*.log
       CLICKHOUSE_HOST: clickhouse
@@ -338,7 +428,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: swanlab/swanlab-server:v3.4.0
+    image: swanlab/swanlab-server:v3.6.0
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -352,7 +442,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=3.4.0
+      - VERSION=3.6.0
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
@@ -365,7 +455,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: swanlab/swanlab-house:v3.4.0
+    image: swanlab/swanlab-house:v3.6.0
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -394,7 +484,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: swanlab/swanlab-cloud:v3.4.0
+    image: swanlab/swanlab-cloud:v3.6.0
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -409,7 +499,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: swanlab/swanlab-next:v3.4.0
+    image: swanlab/swanlab-next:v3.6.0
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -500,7 +590,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-     echo " Self-Hosted Docker v3.4.0 - @SwanLab"
+     echo " Self-Hosted Docker v3.6.0 - @SwanLab"
     echo -e "${reset}"
     echo "🎉 Wow, the installation is complete. Everything is perfect."
     echo "🥰 Congratulations, self-hosted SwanLab can be accessed using ${green}{IP}:${EXPOSE_PORT}${reset}"
