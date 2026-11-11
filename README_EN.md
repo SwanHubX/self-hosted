@@ -28,7 +28,14 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 🌟 Recent Updates
 
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.5.0`
+> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.6.0`
+
+**v3.6.0 (2026.11.11)**
+
+- 📊 Added swanlab.Histogram parameter distribution chart, supporting passing in statistical numerical distributions of parameters such as model gradients.
+- ⚙️ Added partition settings and chart sorting.
+- 🗂️ Added metric directory, supporting browsing metrics layer by layer in a tree-structured directory, making the metric hierarchy clearer.
+- 🐞 Fixed some chart interaction performance issues using WASM.
 
 **v3.5.0 (2026.10.13)**
 
@@ -49,14 +56,14 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 - ⚙️ Added the [swanlab.define_metric()](https://docs.swanlab.cn/en/api/py-define_metric.html) API, which allows defining chart behaviors before logging metrics, including customizing the X-axis, chart grouping, etc.
 - 🐞 Fixed an issue where users with project write-only permissions encountered a 403 error when initializing if the project already existed. Now the system will first query the project and only create it if it does not exist.
 
+<details><summary>Full Changelog</summary>
+
 **v3.2.0 (2026.08.24)**
 
 - 🗑 Added Recycle Bin feature. Deleted projects and experiments will be moved to the Recycle Bin, supporting restoration or permanent deletion.
 - 🔬 Added cross-project experiment comparison. Experiments from other projects can be added for comparison.
 - 🐞 Fixed an issue where empty system charts could not be hidden.
 - 🐞 Fixed an issue where the experiment color change in comparison view was not synced to the single experiment view.
-
-<details><summary>Full Changelog</summary>
 
 **v3.1.1 (2026.08.04)**
 
@@ -221,9 +228,10 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version                     |
 | ------------------- | ----------------------------------------- |
-| v3.5.0              | v0.7.6 ~ v0.10.x                          |
-| v3.4.0              | v0.7.6 ~ v0.10.x                          |
-| v3.3.0              | v0.7.6 ~ v0.10.x                          |
+| v3.6.0              | v0.7.6 ~ v0.10.5                          |
+| v3.5.0              | v0.7.6 ~ v0.10.4                          |
+| v3.4.0              | v0.7.6 ~ v0.10.4                          |
+| v3.3.0              | v0.7.6 ~ v0.10.4                          |
 | v3.2.0              | v0.7.6 ~ v0.9.x                           |
 | v3.1.1              | v0.7.6 ~ v0.9.x                           |
 | v3.1.0              | v0.7.4 ~ v0.9.x                           |
