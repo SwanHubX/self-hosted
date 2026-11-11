@@ -12,6 +12,7 @@
 #   --ingestion-paused   声明已暂停外部上报并完成在途请求对账，升级与回滚必须提供
 #
 # 数据库迁移由一次性服务 server-migrate 在 server 副本启动前执行。
+# 自定义服务/镜像请写入运行目录的 docker-compose.override.yaml；升级只覆盖模板文件。
 #
 # 从 docker-v2 模板目录运行（自动定位模板文件），目标为安装时创建的运行目录。
 set -o pipefail
@@ -64,8 +65,11 @@ if [ -n "$ROLLBACK_DIR" ]; then
 
   require_docker
   validate_env "${ROLLBACK_DIR}/.env" || die "备份 .env 校验失败，当前配置未修改"
+  ROLLBACK_OVERRIDE="${ROLLBACK_DIR}/docker-compose.override.yaml"
+  ROLLBACK_COMPOSE=(-f "${ROLLBACK_DIR}/docker-compose.yaml")
+  [ -f "$ROLLBACK_OVERRIDE" ] && ROLLBACK_COMPOSE+=(-f "$ROLLBACK_OVERRIDE")
   (cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" --env-file "${ROLLBACK_DIR}/.env" \
-    -f "${ROLLBACK_DIR}/docker-compose.yaml" config --quiet) \
+    "${ROLLBACK_COMPOSE[@]}" config --quiet) \
     || die "备份 compose 无法渲染，当前配置未修改"
   log_info "暂停 House，检查当前 Vector 缓冲后再回滚..."
   pause_house "$TARGET_DIR" || die "暂停 House 失败，当前配置未修改"
@@ -77,11 +81,19 @@ if [ -n "$ROLLBACK_DIR" ]; then
   PRE_ROLLBACK="${TARGET_DIR}/backups/pre-rollback-$(date +%Y%m%d%H%M%S)"
   mkdir -p "$PRE_ROLLBACK"
   cp "${TARGET_DIR}/docker-compose.yaml" "${TARGET_DIR}/.env" "$PRE_ROLLBACK/"
+  [ -f "${TARGET_DIR}/docker-compose.override.yaml" ] \
+    && cp "${TARGET_DIR}/docker-compose.override.yaml" "$PRE_ROLLBACK/"
   [ -d "${TARGET_DIR}/config" ] && cp -r "${TARGET_DIR}/config" "$PRE_ROLLBACK/"
   log_ok "已快照当前状态到 ${PRE_ROLLBACK}"
 
   # 还原文件
   cp -f "${ROLLBACK_DIR}/docker-compose.yaml" "${ROLLBACK_DIR}/.env" "${TARGET_DIR}/"
+  if [ -f "$ROLLBACK_OVERRIDE" ]; then
+    cp -f "$ROLLBACK_OVERRIDE" "${TARGET_DIR}/docker-compose.override.yaml"
+  elif [ -f "${TARGET_DIR}/docker-compose.override.yaml" ]; then
+    rm -f "${TARGET_DIR}/docker-compose.override.yaml"
+    log_warn "回滚快照不含 docker-compose.override.yaml，已移除当前 override（原文件快照于 ${PRE_ROLLBACK}）"
+  fi
   if [ -d "${ROLLBACK_DIR}/config" ]; then
     rm -rf "${TARGET_DIR}/config"
     cp -r "${ROLLBACK_DIR}/config" "${TARGET_DIR}/"
@@ -98,7 +110,7 @@ if [ -n "$ROLLBACK_DIR" ]; then
   # 数据库快照提示（破坏性操作只提示不自动执行）
   if [ -f "${ROLLBACK_DIR}/pg_snapshot.sql.gz" ]; then
     log_warn "如需同时回滚数据库结构（破坏性，会覆盖升级后的数据）："
-    echo "  gunzip -c ${ROLLBACK_DIR}/pg_snapshot.sql.gz | docker compose -f ${TARGET_DIR}/docker-compose.yaml exec -T postgres psql -U swanlab -d app"
+    echo "  gunzip -c ${ROLLBACK_DIR}/pg_snapshot.sql.gz | (cd ${TARGET_DIR} && docker compose exec -T postgres psql -U swanlab -d app)"
   fi
   log_ok "回滚完成（回滚前状态备份于 ${PRE_ROLLBACK}）"
   exit 0
@@ -138,6 +150,40 @@ check_disk_space "$CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" warn
 validate_env "${TARGET_DIR}/.env" || die "当前 .env 防呆校验未通过，请先修正再升级"
 render_check "${TARGET_DIR}"
 
+OVERRIDE_FILE=$(compose_override_file "$TARGET_DIR" || true)
+[ -n "$OVERRIDE_FILE" ] && log_info "检测到 Compose override: ${OVERRIDE_FILE}（升级保留并自动合并）"
+if [ -z "$OVERRIDE_FILE" ] && [ -f "${TARGET_DIR}/docker-compose.override.yml" ]; then
+  log_warn "检测到 docker-compose.override.yml；升级快照/回滚只处理 docker-compose.override.yaml，建议重命名"
+fi
+
+# 新模板（含 override）预检：现有 Vector 实例升级后必须仍有定义，避免模板覆盖 compose 后实例丢失
+OLD_VECTOR_SERVICES=$(vector_services "$TARGET_DIR") || die "无法解析当前配置中的 Vector 服务"
+NEW_COMPOSE=(-f "${SCRIPT_DIR}/docker-compose.yaml")
+[ -n "$OVERRIDE_FILE" ] && NEW_COMPOSE+=(-f "$OVERRIDE_FILE")
+(cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" --env-file "${TARGET_DIR}/.env" \
+  "${NEW_COMPOSE[@]}" config --quiet) \
+  || die "新模板无法渲染，升级中止，当前配置与服务未修改"
+NEW_VECTOR_SERVICES=$( (cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" \
+  --env-file "${TARGET_DIR}/.env" "${NEW_COMPOSE[@]}" config --services) ) \
+  || die "无法解析新模板中的服务列表，升级中止"
+NEW_VECTOR_SERVICES=$(printf '%s\n' "$NEW_VECTOR_SERVICES" | awk '/^vector(-[0-9]+)?$/ {print}' | sort)
+[ -n "$NEW_VECTOR_SERVICES" ] || die "新模板中没有 Vector 服务，升级中止"
+LOST_VECTOR=""
+for svc in $OLD_VECTOR_SERVICES; do
+  # 单实例 vector → vector-1 是受支持的升级路径，不算丢失
+  case "$svc" in vector) continue ;; esac
+  case " $(printf '%s' "$NEW_VECTOR_SERVICES" | tr '\n' ' ') " in
+    *" $svc "*) ;;
+    *) LOST_VECTOR="${LOST_VECTOR} ${svc}" ;;
+  esac
+done
+if [ -n "$LOST_VECTOR" ]; then
+  log_err "新模板 + override 不再包含 Vector 服务:${LOST_VECTOR}"
+  log_err "升级会覆盖 ${TARGET_DIR}/docker-compose.yaml，直接写在该文件中的实例会丢失。"
+  log_err "请将自定义实例（如 vector-3）迁移到 ${TARGET_DIR}/docker-compose.override.yaml 后重试。"
+  exit 1
+fi
+
 # 容器状态概览
 (cd "${TARGET_DIR}" && docker compose ps) || true
 
@@ -145,10 +191,6 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
   log_ok "--check 体检完成，未做任何变更"
   exit 0
 fi
-
-(cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" --env-file "${TARGET_DIR}/.env" \
-  -f "${SCRIPT_DIR}/docker-compose.yaml" config --quiet) \
-  || die "新模板无法渲染，升级中止，当前配置与服务未修改"
 
 # 正式升级需要 daemon；--check 只读路径已在上方退出（校验/渲染均不依赖 daemon）
 require_docker
@@ -166,12 +208,16 @@ mkdir -p "$BACKUP_DIR"
 BACKUP_DIR=$(cd "$BACKUP_DIR" && pwd)
 cp "${TARGET_DIR}/docker-compose.yaml" "${TARGET_DIR}/.env" "$BACKUP_DIR/" \
   || die "快照失败（compose/.env → ${BACKUP_DIR}）"
+if [ -n "$OVERRIDE_FILE" ]; then
+  cp "$OVERRIDE_FILE" "$BACKUP_DIR/" || die "快照失败（override → ${BACKUP_DIR}）"
+fi
 cp -r "${TARGET_DIR}/config" "$BACKUP_DIR/" \
   || die "config 快照失败——回滚将缺少 config 还原（${BACKUP_DIR}）"
 {
   echo "date=$(date '+%Y-%m-%dT%H:%M:%S%z')"
   echo "from_version=${CURRENT_VERSION}"
   echo "to_version=${TARGET_VERSION}"
+  echo "compose_override=$([ -n "$OVERRIDE_FILE" ] && echo yes || echo no)"
   echo "hostname=$(hostname 2>/dev/null)"
 } > "$BACKUP_DIR/metadata.txt"
 log_ok "已快照当前部署到 ${BACKUP_DIR}"
@@ -224,8 +270,13 @@ pull_images "${TARGET_DIR}" "${OFFLINE}" \
 
 # ---------------- 5. 重建服务 ----------------
 # 先确认已有 WAL 完成恢复，再让 House 发送新事件。
-log_info "先恢复网关与 Vector，确认旧缓冲排空..."
-(cd "$TARGET_DIR" && docker compose up -d --wait --wait-timeout 180 gateway vector-1 vector-2) \
+VECTOR_SERVICES=$(vector_services "$TARGET_DIR") \
+  || die "无法解析新配置中的 Vector 服务，House 保持暂停；配置快照与 WAL 均已保留"
+[ -n "$VECTOR_SERVICES" ] \
+  || die "新配置中没有 Vector 服务，House 保持暂停；配置快照与 WAL 均已保留"
+log_info "先恢复网关与 Vector（${VECTOR_SERVICES}），确认旧缓冲排空..."
+# shellcheck disable=SC2086  # 按空格展开为多个 service
+(cd "$TARGET_DIR" && docker compose up -d --wait --wait-timeout 180 gateway $VECTOR_SERVICES) \
   || die "网关或 Vector 未恢复健康，House 保持暂停；配置快照与 WAL 均已保留"
 wait_vector_buffers_drained "$TARGET_DIR" \
   || die "旧缓冲尚未恢复完成，House 保持暂停；请恢复下游后重试升级"

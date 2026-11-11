@@ -46,9 +46,29 @@ cd docker-v2
 
 > ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的 WAL 目录，共享目录会产生排他锁冲突。默认 `vector-1` 使用 `DATA_PATH/vector`，`vector-2` 使用 `DATA_PATH/vector-2`；新增实例按 `vector-N` 命名并挂载独立目录。旧 `vector/` 目录继续有效，请勿清空。
 
+> 📌 **自定义 Compose 请使用 `docker-compose.override.yaml`**：运行目录的 `docker-compose.yaml` 由模板维护，`upgrade.sh` 会用新模板覆盖它；新增 `vector-N`、调整镜像地址等需要保留的改动写入同目录的 `docker-compose.override.yaml`，Compose 会自动合并，升级会保留，并纳入升级快照与回滚。新增 `vector-3` 的最小写法（其余字段继承 `vector-2`）：
+>
+> ```yaml
+> services:
+>   vector-3:
+>     extends:
+>       file: docker-compose.yaml
+>       service: vector-2
+>     volumes:
+>       - ${DATA_PATH:-./data}/vector-3:/var/lib/vector
+>
+>   # 冷启动时让 House 等待新实例健康
+>   swanlab-house:
+>     depends_on:
+>       vector-3:
+>         condition: service_healthy
+> ```
+
 House 经 `gateway:8080/vector` 发送指标，网关移除 `/vector` 前缀后转发到 Vector 根路径。路由仅对 internal 入口开放，无用户鉴权中间件。Docker healthcheck 和 Traefik 主动探活均使用 `:8686/ping`；主动探活间隔 5 秒、超时 2 秒。`/ping` 表示 HTTP 服务存活，不能证明下游写入或缓冲容量正常，管理 API 保持关闭。
 
 冷启动要求网关与所有 Vector 实例都健康。运行中一个实例故障后，流量在检测窗口后转到其他实例；在途请求仍可能失败。各实例的 WAL 互不复制，故障实例的积压需要该实例恢复后重放。House 的异步发送与有限重试保持原行为，本方案不提供任意故障下的端到端零丢失保证。
+
+**内部调用链的高可用边界**：`server → house`（`SS_HOUSE_URL`）和 `next → cloud`（`CLOUD_URL`）使用 Docker DNS 直连服务名，可分摊到多个运行中的副本；Docker DNS 不感知容器健康状态，故障副本在退出前仍可能收到请求。经 gateway 的外部请求（`/api`、`/api/house` 等）由 Traefik 主动探活摘除。若这两条内部链路也需要健康摘除，应改为经 gateway internal 入口转发并确认内部接口鉴权语义；当前版本不提供该保证。
 
 ## 部署形态与外接
 
@@ -93,7 +113,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 - 输出 `[PASS]/[WARN]/[FAIL]` 汇总，退出码 `0`=无 FAIL、`1`=有 FAIL、`2`=目录不存在——可接入 CI / 监控。
 - 日志与容器：`docker compose ps`、`docker compose logs -f <service>`。
-- 扩缩容：编辑 `.env` 业务副本数后 `up -d`，网关自动发现副本。Vector 默认双实例（`vector-1` / `vector-2`），新增实例按 `vector-N` 命名并独占缓冲目录。
+- 扩缩容：编辑 `.env` 业务副本数后 `up -d`，网关自动发现副本。Vector 默认双实例（`vector-1` / `vector-2`）；新增实例在 `docker-compose.override.yaml` 中按 `vector-N` 定义并独占缓冲目录，升级会自动纳入启动与排空检查。
 
 ## 升级与回滚
 
@@ -108,7 +128,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 - 数据库 schema 由一次性服务 `server-migrate`（`prisma migrate deploy` + `node migrate.js`）在 server 副本启动前串行执行；迁移失败则中断启动过程。
 - 每次升级前自动 `pg_dump` 快照到 `backups/pre-upgrade-<ts>/`；`--rollback` 恢复配置（数据库快照按需手动导入，命令见其输出）。
 - 升级或回滚前必须在维护窗口暂停外部指标上报，并完成已接收请求的对账，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
-- 升级按当前配置暂停 House、停止旧 Vector writer，再更换模板。先启动网关与全部 Vector 实例，等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不重命名 WAL；旧停止容器保留，升级不会自动删除 orphan 容器或数据。
+- 升级按当前配置暂停 House、停止旧 Vector writer，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不重命名 WAL；旧停止容器保留，升级不会自动删除 orphan 容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
 - 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部 WAL，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
 
 ## 存量迁移（旧版 docker → docker-v2）
@@ -135,7 +155,8 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 ```text
 swanlab/
 ├── .env                  # 全部配置（权限 600）
-├── docker-compose.yaml   # 自本模板拷贝
+├── docker-compose.yaml   # 自本模板拷贝；升级时覆盖，勿直接改
+├── docker-compose.override.yaml  # 可选：自定义服务/镜像等持久化覆盖
 ├── config/               # traefik（静态+动态）/ vector 配置
 ├── backups/              # pre-migrate-<ts>/ 与 pre-upgrade-<ts>/、pre-configure-<ts>/ 快照
 └── data/                 # postgres/ redis/ clickhouse/ minio/ vector/ vector-2/（新增实例为 vector-N/）
@@ -152,4 +173,5 @@ swanlab/
 - **OrbStack / rootless Docker 提示 socket 不存在？** `install.sh` 会自动探测并写入 `DOCKER_SOCKET_PATH`（如 `~/.orbstack/run/docker.sock`）；修改环境后 `check.sh` 会校验。
 - **磁盘 90GiB 建议的依据？** 每个 Vector 实例四个 sink 共 40GiB 缓冲，默认两实例 80GiB，另预留至少 10GiB 运行空间；新增实例按 40GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
 - **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
-- **如何切换镜像源 / 命名空间？** 镜像地址定义在 `docker-compose.yaml` 的 image 行。换平台或命名空间可编辑 compose 里的 image 行，离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。
+- **新增 `vector-3` 后如何升级？** 将 `vector-3` 定义写入 `docker-compose.override.yaml`（见上文示例）；`upgrade.sh` 会按合并后的配置启动并排空所有 `vector-N`。直接改在 `docker-compose.yaml` 中的实例会在升级前被检测到并中止，避免模板覆盖后实例停摆、WAL 不参与排空。
+- **如何切换镜像源 / 命名空间？** 在运行目录的 `docker-compose.override.yaml` 中覆盖对应服务的 `image`，避免升级时被模板覆盖；离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。

@@ -5,6 +5,7 @@
 #   - 数据层：PostgreSQL、Redis、ClickHouse、MinIO 通过 COMPOSE_PROFILES 控制启停，支持外接实例
 #   - 业务服务：server、auth、house、next、cloud 支持多副本伸缩
 #   - server-migrate：一次性数据库迁移服务，在 server 服务启动前串行执行数据库变更
+# 自定义扩展（如新增 vector-N、覆盖镜像）请写入 docker-compose.override.yaml；本文件由模板维护，升级时会被覆盖
 # 前置要求：docker compose >= 2.24
 
 networks:
@@ -241,6 +242,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://default@redis:6379}
       - VERSION=${SWANLAB_VERSION}
       - SERVER_PREFIX=/api
+      # Docker DNS 直连，不做实例级健康摘除；仅外部 /api/house 请求经 gateway 探活
       - SS_HOUSE_URL=http://swanlab-house:3000/api/house
       - SS_EXPERIMENT_MAX_COLUMNS=${MAX_METRICS_PER_COPY:-20000}
       - SS_EXPERIMENT_MAX_CHARTS=${MAX_METRICS_PER_COPY:-20000}
@@ -405,6 +407,7 @@ services:
       - "traefik.http.services.swanlab-next.loadbalancer.healthcheck.path=/"
       - "traefik.http.services.swanlab-next.loadbalancer.healthcheck.interval=10s"
     environment:
+      # Docker DNS 直连，不做实例级健康摘除
       - CLOUD_URL=http://swanlab-cloud:80
       - API_URL=http://gateway:8080/api
       # 鉴权校验通过网关 internal 入口路由

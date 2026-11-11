@@ -307,6 +307,12 @@ compose_project_name() {
   printf '%s\n' "$name"
 }
 
+# Compose 自动加载的 override 文件（存在时输出路径）
+compose_override_file() {
+  local f="${1%/}/docker-compose.override.yaml"
+  [ -f "$f" ] && printf '%s\n' "$f"
+}
+
 # 识别当前配置中的 Vector 服务：vector-N，兼容单实例配置回滚。
 vector_services() {
   local services
@@ -521,7 +527,7 @@ wait_services_healthy() {
     ids=$( (cd "$run_dir" && docker compose ps -aq "$svc") )
     if [ -z "$ids" ]; then
       case "$svc" in
-        vector|vector-1|vector-2)
+        vector|vector-[0-9]*)
           log_err "Vector 服务 ${svc} 没有容器"
           failed="$failed $svc"
           continue
