@@ -181,9 +181,10 @@ ensure_fluent_bit_conf() {
     local compose_dir
     compose_dir=$(dirname "$COMPOSE_FILE")
     local conf_file="$compose_dir/fluent-bit.conf"
+    local tmp_conf
+    tmp_conf=$(mktemp) || return 1
 
-    if [ ! -f "$conf_file" ] || ! grep -q 'metrics\.histogram' "$conf_file"; then
-        cat > "$conf_file" <<'FLUENT_BIT_CONF'
+    cat > "$tmp_conf" <<'FLUENT_BIT_CONF'
 [SERVICE]
     Flush           3
     Parsers_File    /conf/parsers.conf
@@ -208,6 +209,7 @@ ensure_fluent_bit_conf() {
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.log+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -223,6 +225,7 @@ ensure_fluent_bit_conf() {
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.scalar+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -238,6 +241,7 @@ ensure_fluent_bit_conf() {
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.media+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -253,6 +257,7 @@ ensure_fluent_bit_conf() {
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.histogram+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -266,6 +271,12 @@ ensure_fluent_bit_conf() {
     Name    stdout
     Match   metrics
 FLUENT_BIT_CONF
+
+    if ! cmp -s "$tmp_conf" "$conf_file"; then
+        mv "$tmp_conf" "$conf_file"
+        chmod 644 "$conf_file"
+    else
+        rm -f "$tmp_conf"
     fi
 
     if ! grep -q 'fluent-bit.conf:/conf/fluent-bit.conf' "$COMPOSE_FILE"; then

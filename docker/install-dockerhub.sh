@@ -156,6 +156,7 @@ cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.log+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -171,6 +172,7 @@ cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.scalar+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -186,6 +188,7 @@ cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.media+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
@@ -201,6 +204,7 @@ cat > fluent-bit.conf <<'FLUENT_BIT_CONF'
     Port                ${CLICKHOUSE_PORT}
     URI                 /?query=INSERT+INTO+app.histogram+FORMAT+JSONEachRow
     Format              json_stream
+    Compress gzip
     json_date_key       timestamp
     json_date_format    java_sql_timestamp
     http_user           ${CLICKHOUSE_USER}
