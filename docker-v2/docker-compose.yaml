@@ -1,7 +1,7 @@
 # SwanLab Self-Hosted（docker-v2）
 # 组件说明：
 #   - gateway：Traefik 3.6 网关，docker provider 动态发现服务副本，file provider 配置中间件与路由屏蔽
-#   - vector：双实例接收 house 指标，经内部网关分发，各自独占磁盘缓冲目录
+#   - vector：默认双实例（vector-1 / vector-2）接收 house 指标，经内部网关分发，各自独占磁盘缓冲目录
 #   - 数据层：PostgreSQL、Redis、ClickHouse、MinIO 通过 COMPOSE_PROFILES 控制启停，支持外接实例
 #   - 业务服务：server、auth、house、next、cloud 支持多副本伸缩
 #   - server-migrate：一次性数据库迁移服务，在 server 服务启动前串行执行数据库变更
@@ -94,7 +94,7 @@ services:
       - gateway-plugins:/plugins
 
   # ---------------- 指标管道 ----------------
-  # 每个进程独占 WAL；实例 1 沿用原目录，升级时无需搬移数据
+  # 每个进程独占 WAL；vector-1 沿用原目录，升级时无需搬移数据
   vector-1:
     <<: *vector
     volumes:

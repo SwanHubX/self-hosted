@@ -22,7 +22,7 @@ die()      { log_err "$@"; exit 1; }
 
 # ---------------- 环境检查 ----------------
 
-# 两实例各三个 10GiB disk buffer，额外预留 10GiB；数据库增长需另行规划。
+# 每个实例三个 10GiB disk buffer；默认两实例共 60GiB，另留运行余量，实例增加时需上调。
 VECTOR_DISK_RECOMMENDED_GIB=70
 VECTOR_DISK_MIN_FREE_GIB=10
 
@@ -275,7 +275,7 @@ check_disk_space() {
     log_ok "磁盘剩余空间: ${avail_gib}GiB（要求 ≥ ${min_gib}GiB）"
     return 0
   fi
-  local reason="Vector 双实例缓冲最多占用 60GiB，还需预留运行空间和数据服务增长空间"
+  local reason="Vector 缓冲每个实例 30GiB（默认两实例 60GiB），还需预留运行空间和数据服务增长空间"
   case "$mode" in
     strict)
       die "磁盘剩余空间 ${avail_gib}GiB < ${min_gib}GiB：${reason}——请更换数据路径或清理磁盘后重试"
@@ -307,11 +307,11 @@ compose_project_name() {
   printf '%s\n' "$name"
 }
 
-# 识别当前配置中的 Vector 服务，兼容单实例配置回滚。
+# 识别当前配置中的 Vector 服务：vector-N，兼容单实例配置回滚。
 vector_services() {
   local services
   services=$(cd "$1" && docker compose config --services) || return 1
-  printf '%s\n' "$services" | awk '/^vector(-[12])?$/ {print}'
+  printf '%s\n' "$services" | awk '/^vector(-[0-9]+)?$/ {print}' | sort
 }
 
 # 分别检查每个 service，避免总数掩盖实例缺失或误扩容。
@@ -340,14 +340,16 @@ stop_vector_services() {
   done
   # 配置更换失败后重试时，旧 writer 可能已经成为 orphan；按项目标签一并停止。
   project=$(compose_project_name "$run_dir") || return 1
-  for service in vector vector-1 vector-2; do
-    ids=$(docker ps -q --filter "label=com.docker.compose.project=${project}" \
-      --filter "label=com.docker.compose.service=${service}") || return 1
-    for id in $ids; do
-      docker stop --time 60 "$id" >/dev/null || return 1
-      running=$(docker inspect --format '{{.State.Running}}' "$id") || return 1
-      [ "$running" = "false" ] || return 1
-    done
+  ids=$(docker ps -q --filter "label=com.docker.compose.project=${project}") || return 1
+  for id in $ids; do
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id") || return 1
+    case "$service" in
+      vector|vector-[0-9]*) ;;
+      *) continue ;;
+    esac
+    docker stop --time 60 "$id" >/dev/null || return 1
+    running=$(docker inspect --format '{{.State.Running}}' "$id") || return 1
+    [ "$running" = "false" ] || return 1
   done
 }
 

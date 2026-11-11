@@ -265,4 +265,4 @@ echo "   - 调整副本数: 编辑 ${RUN_DIR}/.env 的 *_REPLICAS 后 docker com
 echo "   - 升级版本:   ${SCRIPT_DIR}/upgrade.sh ${RUN_DIR}"
 echo "   - 日常巡检:   ${SCRIPT_DIR}/check.sh ${RUN_DIR}（docker compose ps && docker compose logs -f <service>）"
 echo "   - 存量迁移:   ${SCRIPT_DIR}/migrate.sh <旧版 docker 运行目录>（旧版单实例架构 → docker-v2）"
-echo "⚠️  Vector 固定双实例，经网关分发；vector / vector-2 缓冲目录各自独占，禁止对两个服务使用 --scale"
+echo "⚠️  Vector 默认双实例（vector-1 / vector-2），经网关分发；各实例缓冲目录独占，禁止对同一服务使用 --scale"
