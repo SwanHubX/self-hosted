@@ -6,11 +6,11 @@
   <img alt="SwanLab" src="readme_files/swanlab-logo-single.svg" width="70" height="70">
 </picture>
 
-<h1>Self-Hosted SwanLab</h1>
+<h1>SwanLab Self-Hosted</h1>
 
-SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署方式
+SwanLab 私有化部署方案，支持 Docker Compose、Kubernetes 及纯离线环境部署
 
-<a href="https://swanlab.cn">🔥SwanLab 在线版</a> · <a href="https://docs.swanlab.cn/self_host/kubernetes/deploy.html">📃 文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">报告问题</a> · <a href="https://hub.docker.com/search?q=swanlab">DockerHub</a>
+<a href="https://swanlab.cn">🔥 SwanLab Online</a> · <a href="https://docs.swanlab.cn/self_host/kubernetes/deploy.html">📃 部署文档</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">反馈问题</a> · <a href="https://hub.docker.com/search?q=swanlab">Docker Hub</a>
 
 中文 / [English](./README_EN.md)
 
@@ -18,87 +18,159 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 ## 📖 目录
 
-- [🌟 最近更新](#-最近更新)
 - [🚄 快速部署](#-快速部署)
-- [🔌 SDK版本兼容性](#-sdk版本兼容性)
-- [🚀 升级版本](#-升级版本)
-- [📚 资源](#-资源)
+- [🚀 版本升级](#-版本升级)
+- [🔌 SDK 版本兼容性](#-sdk-版本兼容性)
+- [🌟 版本更新日志](#-版本更新日志)
+- [📚 更多资源](#-更多资源)
 
 <br>
 
-## 🌟 最近更新
+## 🚄 快速部署
 
-> 🤔**如何从旧版本升级**：同步项目仓库后，执行 `cd docker && ./upgrade.sh` 可升级至 `v3.6.0` 版本
+### Docker Compose 单实例部署
+
+适用于单机中小规模团队快速部署。详细配置说明请参考 [docker/README.md](./docker/README.md) 或 [Docker 部署文档](https://docs.swanlab.cn/self_host/docker/deploy.html)。
+
+```bash
+git clone https://github.com/swanhubx/self-hosted.git
+cd self-hosted/docker
+```
+
+- **中国大陆镜像源（默认）：**
+  ```bash
+  ./install.sh
+  ```
+- **Docker Hub 镜像源（海外）：**
+  ```bash
+  ./install-dockerhub.sh
+  ```
+
+### Kubernetes 部署
+
+适用于生产级高可用集群部署，请参考 [Kubernetes 部署文档](https://docs.swanlab.cn/self_host/kubernetes/deploy.html)。
+
+<br>
+
+## 🚀 版本升级
+
+拉取最新仓库代码后，进入 `docker` 目录执行升级脚本即可无缝更新并重启服务：
+
+```bash
+git pull
+cd docker
+./upgrade.sh
+```
+
+> 💡 **镜像源迁移提示（`< v3.3.0` 升级必读）**：自 `v3.3.0` 起，基础设施与应用镜像统一托管至 `repo.swanlab.cn`。首次从旧版本升级时，脚本会自动改写 `docker-compose.yaml` 中的镜像地址并重新拉取镜像；升级完成后可执行 `docker image prune` 清理旧镜像。
+
+<br>
+
+## 🔌 SDK 版本兼容性
+
+私有化部署服务端版本与 Python SDK（[`swanlab`](https://github.com/SwanHubX/SwanLab)）的兼容矩阵如下：
+
+| 私有化版本 | 兼容的 Python SDK 版本         |
+| ---------- | ------------------------------ |
+| v3.6.0     | v0.7.6 ~ v0.10.5               |
+| v3.5.0     | v0.7.6 ~ v0.10.4               |
+| v3.4.0     | v0.7.6 ~ v0.10.4               |
+| v3.3.0     | v0.7.6 ~ v0.10.4               |
+| v3.2.0     | v0.7.6 ~ v0.9.x                |
+| v3.1.1     | v0.7.6 ~ v0.9.x                |
+| v3.1.0     | v0.7.6 ~ v0.9.x                |
+| v3.0.0     | v0.7.6 ~ v0.9.x                |
+| v2.8.1     | v0.7.6 ~ v0.8.4                |
+| v2.8.0     | v0.7.6 ~ v0.8.4                |
+| v2.7.4     | v0.7.4 ~ v0.7.20               |
+| v2.7.3     | v0.7.4 ~ v0.7.20               |
+| v2.7.1     | v0.7.4 ~ v0.7.20               |
+| v2.7.0     | v0.7.4 ~ v0.7.20               |
+| v2.6.3     | v0.7.4 ~ v0.7.20               |
+| v2.6.2     | v0.7.4 ~ v0.7.20               |
+| v2.5.0     | v0.6.0 ~ v0.7.3                |
+| v2.4       | v0.6.0 ~ v0.7.3                |
+| v2.3       | v0.6.0 ~ v0.7.3                |
+| v2.2       | v0.6.0 ~ v0.7.3 (不含分组功能) |
+| v2.1       | v0.6.0 ~ v0.7.3 (不含分组功能) |
+| v2.0       | v0.6.0 ~ v0.7.3 (不含分组功能) |
+| v1.3       | v0.6.0 ~ v0.7.3 (不含分组功能) |
+| v1.2       | v0.6.0 ~ v0.6.4                |
+| v1.1       | v0.6.0 ~ v0.6.4                |
+
+<br>
+
+## 🌟 版本更新日志
 
 **v3.6.0 (2026.11.11)**
 
-- 📊 新增 `swanlab.Histogram` 参数分布图，支持传入模型梯度等参数统计数值分布
-- ⚙️ 新增分区设置与图表排序
-- 🗂️ 新增指标目录，支持以树状目录逐层浏览指标，让指标层级更清晰
-- 🐞 使用 WASM 修复了一些图表交互性能问题
+- 📊 **参数分布直方图**：新增 `swanlab.Histogram`，支持记录并可视化模型权重、梯度等张量的数值分布
+- ⚙️ **分区配置与图表排序**：支持自定义看板分区设置及图表排列顺序
+- 🗂️ **树状指标目录**：支持按层级树状结构浏览嵌套指标
+- 🐞 **性能优化**：引入 WebAssembly (WASM) 优化大规模图表交互性能
 
 **v3.5.0 (2026.10.13)**
 
-- 📊 新增实验聚焦功能，悬停对应图例或实验可以自动高亮
-- 🦜 优化侧边栏实验置顶功能，支持更灵活的实验筛选方式
-- 📉 新增实验分组聚合设置
-- 🐞 修复折线图遇到 ±1e308 极端数值时的渲染异常
+- 📊 **实验聚焦高亮**：悬停图例或实验列表项时，自动高亮对应的图表曲线
+- 🦜 **实验置顶筛选**：优化侧边栏实验置顶体验，支持更灵活的筛选条件
+- 📉 **分组聚合配置**：新增实验分组聚合设置
+- 🐞 **问题修复**：修复折线图包含 `±1e308` 极值数据点时的渲染异常
 
 **v3.4.0 (2026.09.17)**
 
-- 📊 新增 「快速创建图表」功能，可以在视图中提高图表配置效率
-- 📊 每个视图现支持生成独立 URL，方便分享
-- 👥 「添加对比实验」现支持选择协作者项目中的实验
+- 📊 **快速创建图表**：在看板视图中支持快捷新建与配置图表
+- 🔗 **视图独立链接**：每个看板视图支持生成独立 URL，便于团队内直接分享
+- 👥 **跨协作者实验对比**：「添加对比实验」支持选择协作者项目中的实验
 
 **v3.3.0 (2026.09.01)**
 
-> ⚠️ **注意**: 本次升级统一使用 repo.swanlab.cn 管理基础设施和应用镜像，首次升级会自动改写 `docker-compose.yaml` 中的镜像引用并重新拉取全部镜像，旧镜像可通过 `docker image prune` 清理
+> ⚠️ **注意**：本版本起统一使用 `repo.swanlab.cn` 管理基础设施与应用镜像。首次升级会自动更新 `docker-compose.yaml` 中的镜像引用并重新拉取镜像，旧镜像可通过 `docker image prune` 清理。
 
-- 📊 新增「指标表达式」功能，支持对多个指标进行计算与组合，并将计算结果进行可视化
-- ⚙️ 新增 [swanlab.define_metric()](https://docs.swanlab.cn/api/py-define_metric.html) API，支持在记录指标前定义图表行为，包括自定义 X 轴、图表分组等。
-- 🐞 修复仅有项目写入权限的用户，在项目已存在时初始化报错 403 的问题，现在会先查询项目，仅在项目不存在时创建项目
+- 📊 **指标表达式**：支持对多个指标进行数学运算与组合，并直接可视化计算结果
+- ⚙️ **自定义图表行为**：新增 [`swanlab.define_metric()`](https://docs.swanlab.cn/api/py-define_metric.html) API，支持在记录指标前定义自定义 X 轴与图表分组
+- 🐞 **权限修复**：修复仅具备项目写入权限的用户在初始化已存在项目时报错 `403` 的问题（改为先查询项目，仅在不存在时创建）
 
 <details><summary>完整更新日志</summary>
 
 **v3.2.0 (2026.08.24)**
 
-- 🗑 新增「回收站」功能，被删除的项目和实验将进入回收站，支持恢复或彻底清理
-- 🔬 新增跨项目对比实验，支持添加其他项目中的实验作为对比实验
-- 🐞 修复系统图表无法隐藏空图表的问题
-- 🐞 修复在对比视图中修改实验颜色后，单实验视图颜色未同步更新的问题
+- 🗑 **回收站**：被删除的项目和实验将移入回收站，支持恢复或彻底清除
+- 🔬 **跨项目实验对比**：支持引入其他项目中的实验进行同图对比
+- 🐞 **问题修复**：修复系统图表无法隐藏空图表的问题
+- 🐞 **问题修复**：修复对比视图中修改实验颜色后，单实验视图颜色未同步更新的问题
 
 **v3.1.1 (2026.08.04)**
 
-- 📉 新增跨项目对比实验
-- 📈 置顶实验数量上限提升至 20 ，折线图最多可显示的实验或分组数量提升至 25
+- 📉 支持跨项目导入对比实验
+- 📈 置顶实验数量上限提升至 20，单张折线图可同时展示的实验/分组上限提升至 25
 
 **v3.1.0 (2026.07.29)**
 
-- 📊：支持 NaN 数据点显示，新增分组聚合上限提示
-- 🐞：修复了多视图版本空图表无法隐藏的问题
+- 📊 支持 `NaN` 数据点展示，新增分组聚合上限提示
+- 🐞 修复多视图模式下空图表无法隐藏的问题
 
 **v3.0.0 (2026.07.21)**
 
-- 📊 全新多视图交互看板上线，需要搭配 SwanLab ≥ 0.9.0+ SDK 使用
+- 📊 全新多视图交互看板上线（需搭配 `swanlab >= 0.9.0` SDK 使用）
 
 **v2.8.1 (2026.06.15)**
 
 - 新特性：支持 HTML 图表
-- 优化：当搜索实验时，图表对比视图同时变化
-- 优化：提高了对 v0.8.0 SDK的适配性
-- 部署：支持 [Promethus监控方案](https://docs.swanlab.cn/self_host/kubernetes/monitor-logging.html)
+- 优化：搜索实验时同步过滤图表对比视图
+- 优化：提升对 SDK v0.8.0 的兼容性
+- 部署：支持 [Prometheus 监控方案](https://docs.swanlab.cn/self_host/kubernetes/monitor-logging.html)
 
 **v2.8.0 (2026.05.29)**
 
-- 修复了部分已知问题。
+- 修复部分已知问题
 
 **v2.7.4 (2026.04.27)**
 
-- 发布项目收藏，修复了部分已知问题
+- 新增项目收藏功能，修复部分已知问题
 
 **v2.7.3 (2026.04.08)**
 
-- 支持实验收藏、基线实验、保存文件等新功能
+- 支持实验收藏、基线实验（Baseline）与文件保存功能
 
 **v2.7.1 (2026.03.06)**
 
@@ -106,164 +178,69 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 **v2.7.0 (2026.01.29)**
 
-- 优化大规模实验以及大批量指标场景下的渲染性能
+- 优化大规模实验及高并发指标场景下的前端渲染性能
 
 **v2.6.3 (2026.01.19)**
 
-- 添加心跳探测，优化图表的渲染性能
+- 新增心跳探测机制，优化图表渲染性能
 
 **v2.6.2 (2025.12.19)**
 
-- 修复部分已知问题，同步云服务更新，支持 swanlab sdk v0.7.4
+- 修复部分已知问题，同步云端功能更新，支持 `swanlab` SDK v0.7.4
 
 **v2.5.1 (2025.12.10)**
 
-- 允许将 minio 替换为其他兼容 S3 协议的对象存储服务
+- 支持将内置 MinIO 替换为任意兼容 S3 协议的外部对象存储服务
 
-**v2.5.0 (2025.12.5)**
+**v2.5.0 (2025.12.05)**
 
-- 为商业版开发了更全面的管理看板
+- 商业版新增企业级管理看板
 
 **v2.4 (2025.11.24)**
 
-- 不再需要开放 minio 的 9000 端口
-- 折线图的数据点携带时间戳信息
+- 收敛对象存储端口，不再需要对外暴露 MinIO `9000` 端口
+- 折线图数据点新增时间戳信息
 
 **v2.3 (2025.11.17)**
 
-- 支持实验分组
+- 支持实验分组功能
 
-**v2.2 (2025.11.6)**
+**v2.2 (2025.11.06)**
 
-- 支持折线图 x 轴自定义
+- 支持折线图自定义 X 轴
 
-**v2.1 (2025.9.30)**
+**v2.1 (2025.09.30)**
 
-- 上线图表视图全新UI
-- 同步到最新的公有云版功能
+- 上线全新图表视图 UI，同步公有云版最新特性
 
-**v2.0 (2025.9.1)**
+**v2.0 (2025.09.01)**
 
-- 更新权限系统
+- 重构权限管理系统
 
-**v1.3 (2025.7.8)**
+**v1.3 (2025.07.08)**
 
-- 同步到最新的公有云版功能
+- 同步公有云版最新功能
 
-**v1.2 (2025.5.30)**
+**v1.2 (2025.05.30)**
 
-- Feature: 上线折线图创建和编辑功能，配置图表功能增加数据源选择功能，支持单张图表显示不同的指标
-- Feature: 支持在实验添加Tag标签
-- Feature: 支持折线图Log Scale；支持分组拖拽；增加swanlab.OpenApi开放接口
-- Feature: 新增「默认空间」和「默认可见性」配置，用于指定项目默认创建在对应的组织下
-- Optimize: 优化大量指标上传导致部分数据丢失的问题
-- Optimize: 大幅优化指标上传的性能问题
-- BugFix: 修复实验无法自动关闭的问题
+- Feature: 支持折线图创建、编辑与多数据源配置（单图展示多指标）
+- Feature: 支持为实验添加 Tag 标签
+- Feature: 支持折线图对数坐标轴（Log Scale）、分组拖拽排序及 `swanlab.OpenApi` 开放接口
+- Feature: 新增「默认空间」与「默认可见性」配置
+- Optimize: 大幅优化高频指标上报吞吐性能，修复极端高并发下的数据丢失问题
+- BugFix: 修复实验状态无法自动结束的问题
 
-**v1.1 (2025.4.27)**
-swanlab相关镜像已更新至v1.1版本，初次使用的用户直接运行`install.sh` 即可享用v1.1版本，原v1版本用户可直接运行`docker/upgrade.sh`对`docker-compose.yaml`进行升级重启。
+**v1.1 (2025.04.27)**
+
+- 镜像更新至 v1.1 版本，新用户可直接运行 `install.sh` 部署，v1.0 用户可运行 `docker/upgrade.sh` 原地升级。
+
 </details>
 
 <br>
 
-## 🚄 Kubernetes快速部署
+## 📚 更多资源
 
-请参考[此文档](https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html)
-
-## 🚄 Docker快速部署
-
-### 1. 手动部署
-
-克隆仓库：
-
-```bash
-git clone https://github.com/swanhubx/self-hosted.git
-cd self-hosted/docker
-```
-
-**方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
-
-```bash
-./install-dockerhub.sh
-```
-
-**方式二：** 中国地区快速部署：
-
-```bash
-./install.sh
-```
-
-### 2. 一键脚本部署
-
-**方式一：** 使用 [DockerHub](https://hub.docker.com/search?q=swanlab) 镜像源部署：
-
-```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install-dockerhub.sh
-```
-
-**方式二：** 中国地区快速部署：
-
-```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh && bash install.sh
-```
-
-详细内容参考：[docker/README.md](./docker/README.md)
-
-教程文档：[使用Docker进行部署](https://docs.swanlab.cn/self_host/docker/deploy.html)
-
-<br>
-
-## 🚀 升级版本
-
-克隆仓库同步最新的代码后，进入 `docker` 目录执行 `./upgrade.sh` 实现升级重启到最新版本。
-
-```bash
-cd docker
-bash ./upgrade.sh
-```
-
-<br>
-
-## 🔌 SDK版本兼容性
-
-私有化部署版本与SDK（即[swanlab](https://github.com/SwanHubX/SwanLab) python库）的兼容性如下表：
-
-| 私有化版本 | 支持的 SDK 版本              |
-| ---------- | ---------------------------- |
-| v3.6.0     | v0.7.6 ~ v0.10.5             |
-| v3.5.0     | v0.7.6 ~ v0.10.4             |
-| v3.4.0     | v0.7.6 ~ v0.10.4             |
-| v3.3.0     | v0.7.6 ~ v0.10.4             |
-| v3.2.0     | v0.7.6 ~ v0.9.x              |
-| v3.1.1     | v0.7.6 ~ v0.9.x              |
-| v3.1.0     | v0.7.4 ~ v0.9.x              |
-| v3.0.0     | v0.7.6 ~ v0.9.x              |
-| v2.8.1     | v0.7.6 ~ v0.8.4              |
-| v2.8.0     | v0.7.6 ~ v0.8.4              |
-| v2.7.4     | v0.7.4 ~ v0.7.20             |
-| v2.7.3     | v0.7.4 ~ v0.7.20             |
-| v2.7.1     | v0.7.4 ~ v0.7.20             |
-| v2.7.0     | v0.7.4 ~ v0.7.20             |
-| v2.6.3     | v0.7.4 ~ v0.7.20             |
-| v2.6.2     | v0.7.4 ~ v0.7.20             |
-| v2.5.0     | v0.6.0 ~ v0.7.3              |
-| v2.4       | v0.6.0 ~ v0.7.3              |
-| v2.3       | v0.6.0 ~ v0.7.3              |
-| v2.2       | v0.6.0 ~ v0.7.3 (除分组功能) |
-| v2.1       | v0.6.0 ~ v0.7.3 (除分组功能) |
-| v2.0       | v0.6.0 ~ v0.7.3 (除分组功能) |
-| v1.3       | v0.6.0 ~ v0.7.3 (除分组功能) |
-| v1.2       | v0.6.0 ~ v0.6.4              |
-| v1.1       | v0.6.0 ~ v0.6.4              |
-
-[dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
-[dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
-
-<br>
-
-## 📚 资源
-
-- [纯离线环境部署](https://docs.swanlab.cn/self_host/docker/offline-deployment.html)
-- [腾讯云云应用部署](https://docs.swanlab.cn/self_host/alibabacloud-computenest.html)
-- [阿里云计算巢部署](https://docs.swanlab.cn/self_host/tencentcloud-app.html)
-- [常见问题](https://docs.swanlab.cn/self_host/kubernetes/faq.html)
+- [纯离线环境部署指南](https://docs.swanlab.cn/self_host/docker/offline-deployment.html)
+- [阿里云计算巢部署](https://docs.swanlab.cn/self_host/alibabacloud-computenest.html)
+- [腾讯云云应用部署](https://docs.swanlab.cn/self_host/tencentcloud-app.html)
+- [常见问题 (FAQ)](https://docs.swanlab.cn/self_host/kubernetes/faq.html)
