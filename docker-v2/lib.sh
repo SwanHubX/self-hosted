@@ -147,7 +147,7 @@ require_project_name_free() {
   return 0
 }
 
-# ---------------- .env 解析与防呆校验 ----------------
+# ---------------- .env 解析与配置校验 ----------------
 
 # 读取环境变量值，重复键以最后一条为准
 env_get() {
@@ -235,7 +235,7 @@ validate_env() {
   esac
 
   [ "$errors" -eq 0 ] || return 1
-  log_ok "防呆校验通过（COMPOSE_PROFILES=${profiles:-<空>} / SS_STORAGE_TYPE=${sst}）"
+  log_ok "配置校验通过（COMPOSE_PROFILES=${profiles:-<空>} / SS_STORAGE_TYPE=${sst}）"
 }
 
 # 更新或追加环境变量，写入时保留原文件权限
@@ -331,7 +331,7 @@ pause_house() {
   (cd "$1" && docker compose stop --timeout 60 swanlab-house) || return 1
 }
 
-# 使用当前配置停止 writer，配置替换后不再依赖旧 service 的存在。
+# 按当前配置停止 Vector，配置替换后不再依赖旧服务定义。
 stop_vector_services() {
   local run_dir="$1" services service ids id running project
   services=$(vector_services "$run_dir") || return 1
@@ -341,10 +341,10 @@ stop_vector_services() {
     ids=$(cd "$run_dir" && docker compose ps -aq "$service") || return 1
     for id in $ids; do
       running=$(docker inspect --format '{{.State.Running}}' "$id") || return 1
-      [ "$running" = "false" ] || { log_err "${service} 仍在运行，禁止切换 WAL writer"; return 1; }
+      [ "$running" = "false" ] || { log_err "${service} 仍在运行，不能切换缓冲目录的写入进程"; return 1; }
     done
   done
-  # 配置更换失败后重试时，旧 writer 可能已经成为 orphan；按项目标签一并停止。
+  # 配置更换失败后重试时，旧 Vector 容器可能已不在当前配置中；按项目标签一并停止。
   project=$(compose_project_name "$run_dir") || return 1
   ids=$(docker ps -q --filter "label=com.docker.compose.project=${project}") || return 1
   for id in $ids; do
@@ -395,12 +395,15 @@ vector_downstream_ready() {
 
 # disk buffer 的用量在首次写入前可能不存在；已注册容量且没有接收记录表示空缓冲。
 # 已接收数据时必须同时具备事件与字节用量；缺失或非法样本不能作为排空依据。
+# 兼容 0.51（buffer_events/buffer_byte_size）与 0.58+（buffer_size_events/buffer_size_bytes）指标名。
 vector_buffers_empty() {
   awk '
-    /^(vector_)?buffer_(max_byte_size|events|byte_size|received_events_total)\{/ && /buffer_type="disk"/ {
+    /^(vector_)?buffer_(max_byte_size|events|byte_size|received_events_total|size_events|size_bytes)\{/ && /buffer_type="disk"/ {
       id=$0; sub(/^.*component_id="/, "", id); sub(/".*$/, "", id)
       if (id !~ /^clickhouse_(scalar|media|histogram|log)$/) next
       metric=$1; sub(/\{.*$/, "", metric); sub(/^vector_/, "", metric)
+      if (metric == "buffer_size_events") metric = "buffer_events"
+      else if (metric == "buffer_size_bytes") metric = "buffer_byte_size"
       if ($2 !~ /^[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$/) invalid=1
       key=id SUBSEP metric
       if (key in values) invalid=1
@@ -428,7 +431,7 @@ wait_vector_buffers_drained() {
     all_empty=1
     for service in $services; do
       vector_http_get "$run_dir" "$service" 8686 /ping >/dev/null || {
-        log_err "${service} 无法响应，不能确认 WAL 已排空"; return 1;
+        log_err "${service} 无法响应，不能确认缓冲已排空"; return 1;
       }
       vector_downstream_ready "$run_dir" "$service" || {
         log_err "${service} 无法访问 ClickHouse，回滚前请先恢复下游"; return 1;
@@ -442,7 +445,7 @@ wait_vector_buffers_drained() {
     sleep 35
     elapsed=$((elapsed + 35))
   done
-  log_err "Vector 缓冲尚未排空；保留配置和 WAL，恢复下游后重试"
+  log_err "Vector 缓冲尚未排空；配置和缓冲数据均已保留，恢复下游后重试"
   return 1
 }
 

@@ -26,8 +26,9 @@ x-common: &common
 
 x-vector: &vector
   <<: *common
-  image: repo.swanlab.cn/public/vector:0.51.1-debian
-  command: ["--config", "/etc/vector/vector.yaml"]
+  image: repo.swanlab.cn/public/vector:0.61.0-debian
+  # 0.57 起默认关闭配置内环境变量插值，启动前渲染 ${CLICKHOUSE_*} 占位符
+  entrypoint: ["/bin/bash", "/etc/vector/render.sh"]
   stop_grace_period: 60s
   depends_on:
     clickhouse:
@@ -95,17 +96,19 @@ services:
       - gateway-plugins:/plugins
 
   # ---------------- 指标管道 ----------------
-  # 每个进程独占 WAL；vector-1 沿用原目录，升级时无需搬移数据
+  # 每个进程独占缓冲目录；vector-1 沿用原目录，升级时无需搬移数据
   vector-1:
     <<: *vector
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./config/vector/render.sh:/etc/vector/render.sh:ro
       - ${DATA_PATH:-./data}/vector:/var/lib/vector
 
   vector-2:
     <<: *vector
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./config/vector/render.sh:/etc/vector/render.sh:ro
       - ${DATA_PATH:-./data}/vector-2:/var/lib/vector
 
   # ---------------- 数据层（独立 profile，外接某项即从 COMPOSE_PROFILES 移除） ----------------

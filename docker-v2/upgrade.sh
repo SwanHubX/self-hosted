@@ -3,13 +3,13 @@
 #
 # 用法: ./upgrade.sh [运行目录(默认 ./swanlab)] [选项]
 #   (默认)              快照 → (本机 PG 自动 pg_dump) → 铺设新模板 → 拉镜像 → up -d → 健康等待
-#   --check             只读体检：版本对比 / 磁盘 / 防呆校验 / 渲染 / 容器状态，不做任何变更
+#   --check             只读体检：版本对比 / 磁盘 / 配置校验 / 渲染 / 容器状态，不做任何变更
 #   --version X.Y.Z     覆盖目标版本（默认取模板 .env.example 的 SWANLAB_VERSION）
 #   --offline | -o      离线/内网：跳过 docker compose pull，仅校验所需镜像已在本地
 #   --rollback <dir>    从 backups/pre-upgrade-<ts>/ 回滚 compose / .env / config
 #                       （数据库快照按需手动导入，脚本会给出命令）
 #   --yes | -y          跳过交互确认
-#   --ingestion-paused   声明已暂停外部上报并完成在途请求对账，升级与回滚必须提供
+#   --ingestion-paused   声明已暂停外部上报并确认在途请求已处理完，升级与回滚必须提供
 #
 # 数据库迁移由一次性服务 server-migrate 在 server 副本启动前执行。
 # 自定义服务/镜像请写入运行目录的 docker-compose.override.yaml；升级只覆盖模板文件。
@@ -52,7 +52,7 @@ require_compose_v224
 
 if [ "$CHECK_ONLY" -eq 0 ] || [ -n "$ROLLBACK_DIR" ]; then
   [ "$INGESTION_PAUSED" -eq 1 ] \
-    || die "请先暂停外部指标上报并完成在途请求对账，再加 --ingestion-paused；--yes 不替代维护窗口要求"
+    || die "请先暂停外部指标上报并确认在途请求已处理完，再加 --ingestion-paused；--yes 不能替代维护窗口要求"
 fi
 
 # ---------------- --rollback 分支 ----------------
@@ -74,7 +74,7 @@ if [ -n "$ROLLBACK_DIR" ]; then
   log_info "暂停 House，检查当前 Vector 缓冲后再回滚..."
   pause_house "$TARGET_DIR" || die "暂停 House 失败，当前配置未修改"
   wait_vector_buffers_drained "$TARGET_DIR" \
-    || die "无法确认缓冲已排空，回滚中止；配置与 WAL 保留，House 保持暂停"
+    || die "无法确认缓冲已排空，回滚中止；配置与缓冲数据均已保留，House 保持暂停"
   stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，当前配置未修改"
 
   # 回滚前先快照当前状态（防回滚本身出错）
@@ -134,7 +134,7 @@ echo "${bold}----- 升级体检 -----${reset}"
 echo "  当前版本: ${CURRENT_VERSION:-未知}"
 echo "  目标版本: ${TARGET_VERSION}（模板版本: ${TEMPLATE_VERSION}）"
 if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
-  log_warn "当前版本与目标版本相同（重跑迁移与重建，不改变版本）"
+  log_warn "当前版本与目标版本相同（将重新部署服务，版本不变）"
 fi
 
 # 检查双实例缓冲与运行余量
@@ -147,7 +147,7 @@ esac
 check_disk_space "$CHECK_PATH" "$VECTOR_DISK_RECOMMENDED_GIB" warn
 
 # 配置校验与渲染
-validate_env "${TARGET_DIR}/.env" || die "当前 .env 防呆校验未通过，请先修正再升级"
+validate_env "${TARGET_DIR}/.env" || die "当前 .env 配置校验未通过，请先修正再升级"
 render_check "${TARGET_DIR}"
 
 OVERRIDE_FILE=$(compose_override_file "$TARGET_DIR" || true)
@@ -240,8 +240,8 @@ case ",$PROFILES," in
     ;;
 esac
 
-# 先按现有配置停写，避免旧 service 在配置更换后继续占用 WAL。
-log_info "暂停 House 并停止当前 Vector writer；数据目录和停止容器均保留..."
+# 先按当前配置停止写入，避免旧容器在配置更换后继续占用缓冲目录。
+log_info "暂停 House 并停止当前 Vector；数据目录和已停止的容器均保留..."
 pause_house "$TARGET_DIR" || die "暂停 House 失败，升级中止"
 stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，升级中止，尚未替换配置"
 
@@ -269,17 +269,17 @@ pull_images "${TARGET_DIR}" "${OFFLINE}" \
   || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --v2 --save 打包，在目标机 docker load 后加 --offline 重试）"
 
 # ---------------- 5. 重建服务 ----------------
-# 先确认已有 WAL 完成恢复，再让 House 发送新事件。
+# 先确认已有缓冲数据写入完成，再让 House 发送新事件。
 VECTOR_SERVICES=$(vector_services "$TARGET_DIR") \
-  || die "无法解析新配置中的 Vector 服务，House 保持暂停；配置快照与 WAL 均已保留"
+  || die "无法解析新配置中的 Vector 服务，House 保持暂停；配置快照与缓冲数据均已保留"
 [ -n "$VECTOR_SERVICES" ] \
-  || die "新配置中没有 Vector 服务，House 保持暂停；配置快照与 WAL 均已保留"
+  || die "新配置中没有 Vector 服务，House 保持暂停；配置快照与缓冲数据均已保留"
 log_info "先恢复网关与 Vector（${VECTOR_SERVICES}），确认旧缓冲排空..."
 # shellcheck disable=SC2086  # 按空格展开为多个 service
 (cd "$TARGET_DIR" && docker compose up -d --wait --wait-timeout 180 gateway $VECTOR_SERVICES) \
-  || die "网关或 Vector 未恢复健康，House 保持暂停；配置快照与 WAL 均已保留"
+  || die "网关或 Vector 未恢复健康，House 保持暂停；配置快照与缓冲数据均已保留"
 wait_vector_buffers_drained "$TARGET_DIR" \
-  || die "旧缓冲尚未恢复完成，House 保持暂停；请恢复下游后重试升级"
+  || die "旧缓冲尚未排空完成，House 保持暂停；请恢复下游后重试升级"
 
 # 启动服务；数据库迁移由 server-migrate 在 server 副本启动前完成
 log_info "重建服务（docker compose up -d）..."

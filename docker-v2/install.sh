@@ -47,7 +47,7 @@ require_project_name_free "${RUN_DIR}"
 # ---- 2. 运行目录 ----
 # 检查目录是否已存在部署文件
 if [ -e "${RUN_DIR}/.env" ] || [ -e "${RUN_DIR}/docker-compose.yaml" ]; then
-  die "${RUN_DIR} 已有部署痕迹（.env / docker-compose.yaml 存在）——似乎安装过？请使用 upgrade.sh 升级，或指定其他运行目录"
+  die "${RUN_DIR} 已存在部署文件（.env / docker-compose.yaml）——请使用 upgrade.sh 升级，或指定其他运行目录"
 fi
 mkdir -p "${RUN_DIR}"
 
@@ -233,8 +233,8 @@ rm -rf "${RUN_DIR}/config"
 cp -r "${SCRIPT_DIR}/config" "${RUN_DIR}/config"
 log_ok "已铺设 docker-compose.yaml 与 config/ 到 ${RUN_DIR}"
 
-# ---- 7. 防呆校验 + 渲染 ----
-validate_env "${RUN_DIR}/.env" || die "防呆校验未通过，请修正 ${RUN_DIR}/.env 后重试"
+# ---- 7. 配置校验 + 渲染 ----
+validate_env "${RUN_DIR}/.env" || die "配置校验未通过，请修正 ${RUN_DIR}/.env 后重试"
 render_check "${RUN_DIR}"
 
 # ---- 8. 拉取镜像 ----

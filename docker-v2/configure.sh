@@ -5,7 +5,7 @@
 #   --status    只读显示当前数据层形态与外接配置，不做任何变更
 #
 # 数据层逐项切换 本机容器 ↔ 外部实例：
-#   交互更新 .env → 备份 → 防呆校验 → 渲染 → 按需 up -d 生效
+#   交互更新 .env → 备份 → 配置校验 → 渲染 → 按需 up -d 生效
 #
 # 切换修改连接指向，不迁移数据：
 #   - 外接 → 本机：连接本机实例，外部数据不迁移
@@ -280,7 +280,7 @@ echo "  变更键: ${changed_keys}"
 echo "  COMPOSE_PROFILES: ${PROFILES:-<空>}"
 
 echo
-validate_env "$ENV_FILE" || die "防呆校验未通过：请检查上方报错，修正后重跑（或对照 ${BACKUP_DIR}/.env 还原）"
+validate_env "$ENV_FILE" || die "配置校验未通过：请检查上方报错，修正后重跑（或对照 ${BACKUP_DIR}/.env 还原）"
 render_check "$TARGET_DIR"
 
 echo

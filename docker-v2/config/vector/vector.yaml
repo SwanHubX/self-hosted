@@ -1,6 +1,6 @@
 # Vector 共享配置；每个实例必须独占自己的 data_dir 挂载目录
 # 数据流：接收 HTTP 指标，按类型分流至 scalar、media、histogram、log 表并写入 ClickHouse
-# ClickHouse 连接参数由环境变量注入
+# ClickHouse 连接参数保留 ${} 占位符，由启动时 render.sh 渲染为实际值（0.57 起默认关闭配置内插值）
 
 data_dir: "/var/lib/vector"
 
@@ -14,9 +14,8 @@ sources:
   http_metrics:
     type: http_server
     address: "0.0.0.0:8686"
-    encoding: json
-    acknowledgements:
-      enabled: true
+    decoding:
+      codec: json
 
   # Vector 自身内部指标（CPU/内存/吞吐/utilization 等）
   internal_metrics:
@@ -156,3 +155,11 @@ sinks:
     inputs:
       - internal_metrics
     address: "0.0.0.0:9090"
+    # 指标端点不参与端到端确认，显式关闭以消除启动警告
+    acknowledgements:
+      enabled: false
+
+  # route 会生成 _unmatched 输出；未命中类型显式丢弃，避免每条启动警告
+  discard_unmatched:
+    type: blackhole
+    inputs: ["metric_router._unmatched"]

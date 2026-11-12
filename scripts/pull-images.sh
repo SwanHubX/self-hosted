@@ -30,7 +30,7 @@ images_legacy=(
 images_v2=(
   "repo.swanlab.cn/public/traefik:3.6"
   "repo.swanlab.cn/public/swanlab-helper/identify:v1.2"
-  "repo.swanlab.cn/public/vector:0.51.1-debian"
+  "repo.swanlab.cn/public/vector:0.61.0-debian"
   "repo.swanlab.cn/self-hosted/postgres:16.1"
   "repo.swanlab.cn/self-hosted/redis-stack:7.4.0-v8"
   "repo.swanlab.cn/self-hosted/clickhouse-server:24.3"

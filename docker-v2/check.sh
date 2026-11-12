@@ -51,7 +51,7 @@ fi
 
 # ---------------- 2. 运行目录完整性 ----------------
 echo "${bold}----- 2. 运行目录 -----${reset}"
-for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml"; do
+for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml" "config/vector/render.sh"; do
   if [ -e "${TARGET_DIR}/${f}" ]; then
     pass_ "${f} 存在"
   else
@@ -77,13 +77,13 @@ else
   warn_ "Docker socket 不存在: ${SOCKET_V}（gateway 将无法发现容器，检查 .env DOCKER_SOCKET_PATH）"
 fi
 
-# ---------------- 3. 防呆校验 ----------------
-echo "${bold}----- 3. 防呆校验 -----${reset}"
+# ---------------- 3. 配置校验 ----------------
+echo "${bold}----- 3. 配置校验 -----${reset}"
 if [ -f "$ENV_FILE" ]; then
   if validate_env "$ENV_FILE" 2>&1; then
     :
   else
-    fail_ "防呆校验未通过（详见上方输出）"
+    fail_ "配置校验未通过（详见上方输出）"
   fi
 fi
 
@@ -97,12 +97,12 @@ if [ -f "${TARGET_DIR}/docker-compose.yaml" ]; then
   fi
 fi
 
-# ---------------- 5. 项目一致性（混栈检测） ----------------
+# ---------------- 5. 项目一致性（跨目录容器检测） ----------------
 echo "${bold}----- 5. 项目一致性 -----${reset}"
 if foreign_project_container "$TARGET_DIR"; then
-  fail_ "项目 swanlab 混入其他目录的容器: ${FOREIGN_CONTAINER}（working_dir ${FOREIGN_WD}）——两栈并存，清理任一侧会波及另一侧；请完成 migrate.sh 原地迁移或 down 掉另一栈"
+  fail_ "项目 swanlab 中存在由其他目录启动的容器: ${FOREIGN_CONTAINER}（working_dir ${FOREIGN_WD}）——两套部署会互相干扰，请先完成 migrate.sh 原地迁移，或在另一个目录执行 docker compose down"
 else
-  pass_ "项目 swanlab 无外来容器（无混栈）"
+  pass_ "项目 swanlab 无其他目录的容器"
 fi
 
 # ---------------- 6. vector 实例检查 ----------------
@@ -143,7 +143,7 @@ else
   for ((i = 0; i < ${#VECTOR_SOURCES[@]}; i++)); do
     for ((j = i + 1; j < ${#VECTOR_SOURCES[@]}; j++)); do
       if [ "${VECTOR_SOURCES[i]}" = "${VECTOR_SOURCES[j]}" ] || [ "${VECTOR_SOURCES[i]}" -ef "${VECTOR_SOURCES[j]}" ]; then
-        fail_ "Vector 实例挂载了同一个数据目录（${VECTOR_SOURCES[i]}），必须停写并修正挂载，保留所有 WAL"
+        fail_ "Vector 实例挂载了同一个数据目录（${VECTOR_SOURCES[i]}），请停止写入并修正挂载，保留缓冲数据"
         vector_mount_conflict=1
       fi
     done
@@ -156,7 +156,7 @@ vector_project=$(compose_project_name "$TARGET_DIR")
 legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=${vector_project}" --filter 'label=com.docker.compose.service=vector')
 for legacy_id in $legacy_ids; do
   if [ "$(docker inspect --format '{{.State.Running}}' "$legacy_id")" = "true" ]; then
-    fail_ "旧 vector 容器仍在运行，可能占用实例 1 的 WAL；请按升级流程停止旧 writer"
+    fail_ "旧 vector 容器仍在运行，可能占用实例 1 的缓冲目录；请按升级流程停止旧容器"
   else
     warn_ "旧 vector 容器已停止并保留；vector/ 是实例 1 的有效数据目录，请勿清空"
   fi

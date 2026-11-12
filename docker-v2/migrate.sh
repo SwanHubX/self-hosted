@@ -13,7 +13,7 @@
 # 实现思路：
 #   1. 校验旧版运行目录与服务运行状态。
 #   2. 备份旧版配置文件（compose 与 .env）。
-#   3. 停止摄入服务并等待 ClickHouse 数据排空。
+#   3. 停止数据上报服务并等待 ClickHouse 数据写入完成。
 #   4. 停止旧版容器，铺设 docker-v2 配置文件并合并环境变量。
 #   5. 启动 docker-v2 服务并等待健康检查通过。
 set -o pipefail
@@ -22,9 +22,9 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
-# 新栈项目名固定 swanlab，原地迁移依赖同名网络与容器前缀
+# 新部署的项目名固定为 swanlab，原地迁移依赖同名网络与容器前缀
 PROJECT_NAME="swanlab"
-# 旧栈业务容器列表
+# 旧版部署的业务容器列表
 LEGACY_CONTAINERS="swanlab-postgres swanlab-redis swanlab-clickhouse swanlab-minio swanlab-fluentbit swanlab-house swanlab-server"
 
 LEGACY_DIR=""
@@ -36,8 +36,8 @@ usage() {
   cat <<'EOF'
 用法: ./migrate.sh <旧 swanlab 运行目录> [--to <新目录>] [--offline|-o] [--yes|-y]
 
-  <旧 swanlab 运行目录>  必填：旧版（fluent-bit 链路）部署目录，须显式传入（无默认值）
-  --to <目录>            排空后 rsync 数据到新目录，旧目录原样保留（缺省 = 原地迁移）
+  <旧 swanlab 运行目录>  必填：旧版（fluent-bit 架构）部署目录，须显式传入（无默认值）
+  --to <目录>            写入完成后 rsync 数据到新目录，旧目录原样保留（缺省 = 原地迁移）
   -o, --offline          离线/内网：不拉取镜像，改为校验本地镜像齐备
   -y, --yes              免交互确认（非交互环境必须显式指定）
 
@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --fast)
-      log_err "--fast 已移除：迁移统一为「断开摄入 → 等待 ClickHouse 排空 → 下线旧栈」标准流线，不再提供丢数据分支"
+      log_err "--fast 已移除：迁移统一为「停止数据上报 → 等待 ClickHouse 写入完成 → 下线旧版部署」标准流程，不再提供丢弃数据的分支"
       usage; exit 1 ;;
     -*)
       log_err "未知选项: $1"; usage; exit 1 ;;
@@ -103,11 +103,11 @@ LEGACY_ENV="${LEGACY_DIR}/.env"
 LEGACY_ABS=$(cd "$LEGACY_DIR" && pwd -P)
 
 grep -q 'swanlab-fluentbit' "$LEGACY_COMPOSE" \
-  || die "未在 ${LEGACY_COMPOSE} 中检测到 swanlab-fluentbit——不是旧版（fluent-bit 链路）部署；已迁移过请使用 upgrade.sh"
+  || die "未在 ${LEGACY_COMPOSE} 中检测到 swanlab-fluentbit——不是旧版（fluent-bit 架构）部署；已迁移过请使用 upgrade.sh"
 
 for svc in postgres redis clickhouse minio; do
   grep -qE "^  ${svc}:" "$LEGACY_COMPOSE" \
-    || die "旧 compose 缺少 ${svc} 服务定义——migrate.sh 仅支持标准「全 local」形态（四件套本机容器）；请先恢复标准形态或参考 docker-v2/README.md「迁移边界」"
+    || die "旧 compose 缺少 ${svc} 服务定义——migrate.sh 仅支持标准「全 local」形态（四个数据服务均在本机运行）；请先恢复标准形态或参考 docker-v2/README.md「迁移边界」"
 done
 
 # 读取旧版凭据与配置
@@ -125,11 +125,11 @@ LEGACY_VERSION=$(grep -oE 'swanlab-server:v[0-9]+\.[0-9]+\.[0-9]+' "$LEGACY_COMP
 TARGET_VERSION=$(env_get SWANLAB_VERSION "${SCRIPT_DIR}/.env.example")
 [ -n "$TARGET_VERSION" ] || die "模板 .env.example 缺少 SWANLAB_VERSION"
 
-# ---------------- 2. 检查旧栈运行状态 ----------------
+# ---------------- 2. 检查旧版部署运行状态 ----------------
 for c in $LEGACY_CONTAINERS; do
   running=$(docker ps --filter "name=^/${c}$" --format '{{.Names}}' 2>/dev/null)
   [ "$running" = "$c" ] \
-    || die "旧栈容器 ${c} 未在运行——迁移要求旧栈完整运行（数据层四件套 + 摄入链路）；请先在 ${LEGACY_ABS} 执行 docker compose up -d 后重试"
+    || die "旧版容器 ${c} 未在运行——迁移要求旧版部署完整运行（数据层四个服务 + 数据上报服务）；请先在 ${LEGACY_ABS} 执行 docker compose up -d 后重试"
 done
 
 # ---------------- 3. 项目一致性检查 ----------------
@@ -149,13 +149,13 @@ project_containers_within_legacy_compose() {
 if foreign_project_container "$LEGACY_DIR" "$PROJECT_NAME"; then
   if project_containers_within_legacy_compose; then
     log_warn "compose 项目 ${PROJECT_NAME} 的容器 ${FOREIGN_CONTAINER} 记录的启动目录为 ${FOREIGN_WD}，与传入目录 ${LEGACY_ABS} 不一致"
-    log_warn "旧运行目录应是被移动/重命名过（容器 label 停留在旧路径）；这些容器即本次要迁移的旧栈，继续迁移"
+    log_warn "旧运行目录应是被移动/重命名过（容器 label 仍指向旧路径）；这些容器就是本次要迁移的旧版部署，继续迁移"
   else
     die "compose 项目 ${PROJECT_NAME} 存在其他目录的容器: ${FOREIGN_CONTAINER}
      • 容器记录的启动目录: ${FOREIGN_WD}
      • 本次传入的目录:     ${LEGACY_ABS}
   两者不一致，且容器不属于 ${LEGACY_COMPOSE} 定义的服务（疑似另一份 docker-v2/docker 部署）。
-  两栈并存时 down 会互相接管容器，因此拒绝迁移。请确认传入目录是否为旧版运行目录；
+  两套部署并存时 down 会互相接管容器，因此拒绝迁移。请确认传入目录是否为旧版运行目录；
   若确为另一份部署，请先在它的运行目录执行 docker compose down 后重试。"
   fi
 fi
@@ -190,20 +190,20 @@ fi
 # ---------------- 6. 迁移摘要与确认 ----------------
 echo
 echo "${bold}----- 迁移摘要 -----${reset}"
-echo "  旧架构:   docker（fluent-bit 链路）v${LEGACY_VERSION:-未知}（${LEGACY_ABS}）"
+echo "  旧架构:   docker（fluent-bit）v${LEGACY_VERSION:-未知}（${LEGACY_ABS}）"
 echo "  目标:     docker-v2 v${TARGET_VERSION}（$([ -n "$TO_DIR" ] && echo "$TO_DIR" || echo "原地 ${LEGACY_ABS}")）"
 echo "  端口:     ${EXPOSE_PORT_V}    数据目录: ${DATA_PATH_V}"
 echo "  数据层:   全 local（pg/redis/CH/minio 本机容器，凭据与数据目录沿用）"
 echo "  业务副本: server/auth/house/next ×2，cloud ×1（可在新 .env 调整）"
 echo
-log_warn "迁移为停机操作：down 旧栈 → up 新栈期间服务不可用（分钟级）"
+log_warn "迁移会停机：下线旧版部署到启动新部署期间服务不可用（分钟级）"
 confirm_or_die "确认开始迁移?"
 
 # ---------------- 7. 备份旧版配置文件 ----------------
 BACKUP_DIR="${LEGACY_ABS}/backups/pre-migrate-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 cp "$LEGACY_COMPOSE" "$LEGACY_ENV" "$BACKUP_DIR/" \
-  || die "配置快照失败（${BACKUP_DIR}）——旧栈未做任何变更"
+  || die "配置快照失败（${BACKUP_DIR}）——旧版部署未做任何变更"
 {
   echo "date=$(date '+%Y-%m-%dT%H:%M:%S%z')"
   echo "from=docker(fluent-bit) v${LEGACY_VERSION:-unknown}"
@@ -216,10 +216,10 @@ cp "$LEGACY_COMPOSE" "${LEGACY_ABS}/docker-compose.legacy.yaml.bak"
 cp "$LEGACY_ENV" "${LEGACY_ABS}/.env.legacy.bak"
 log_ok "配置快照: ${BACKUP_DIR}（compose / .env / metadata；数据卷未做快照——未修改即可回滚）"
 
-# 排空判定：停止摄入后，轮询 ClickHouse 活跃 parts 行数。连续采样稳定表示存量数据写入完成。
+# 等待写入完成：停止数据上报后，轮询 ClickHouse 行数。连续采样稳定表示存量数据已写完。
 drain_poll() {
   local last="" cur stable=0 failures=0 deadline=$((SECONDS + 150))
-  log_info "排空判定：轮询 ClickHouse 行数（5s 间隔，连续 3 次稳定即完成，超时 150s）"
+  log_info "等待 ClickHouse 写入完成（轮询行数，5s 间隔，连续 3 次稳定即完成，超时 150s）"
   while [ $SECONDS -lt $deadline ]; do
     cur=$(docker exec swanlab-clickhouse clickhouse-client \
             --user swanlab --password "$CH_PASS" \
@@ -231,7 +231,7 @@ drain_poll() {
       failures=0
       if [ "$cur" = "$last" ]; then
         stable=$((stable + 1))
-        [ "$stable" -ge 2 ] && { log_ok "排空完成（ClickHouse 行数稳定: ${cur} rows）"; return 0; }
+        [ "$stable" -ge 2 ] && { log_ok "写入完成（ClickHouse 行数稳定: ${cur} rows）"; return 0; }
       else
         stable=0
       fi
@@ -242,26 +242,26 @@ drain_poll() {
   return 1
 }
 
-# ---------------- 8. 停止摄入服务 ----------------
-log_info "停止摄入源（swanlab-house / swanlab-server）..."
+# ---------------- 8. 停止数据上报服务 ----------------
+log_info "停止数据上报（swanlab-house / swanlab-server）..."
 (cd "$LEGACY_DIR" && docker compose stop swanlab-house swanlab-server) \
-  || die "stop 失败——旧栈状态未知，请在 ${LEGACY_ABS} 执行 docker compose ps 检查后重试"
+  || die "stop 失败——旧版部署状态未知，请在 ${LEGACY_ABS} 执行 docker compose ps 检查后重试"
 
-# 中止处理：重新启动摄入服务并退出
+# 中止处理：重新启动数据上报服务并退出
 abort_restore() {
-  log_warn "中止迁移：恢复旧栈摄入源（house / server）..."
+  log_warn "中止迁移：恢复旧版部署的数据上报（house / server）..."
   (cd "$LEGACY_DIR" && docker compose start swanlab-house swanlab-server) \
     || log_err "恢复失败，请手动执行: (cd ${LEGACY_ABS} && docker compose start swanlab-house swanlab-server)"
-  die "迁移已中止（数据未受影响，旧栈继续运行；确认 ClickHouse 状态后可重试）"
+  die "迁移已中止（数据未受影响，旧版部署继续运行；确认 ClickHouse 状态后可重试）"
 }
 
-# ---------------- 9. 排空判定 ----------------
+# ---------------- 9. 等待 ClickHouse 写入完成 ----------------
 drain_poll || abort_restore
 
-# ---------------- 10. down 旧栈 ----------------
-log_info "停止旧栈（docker compose down；数据卷与 bind mount 均保留）..."
+# ---------------- 10. 下线旧版部署 ----------------
+log_info "下线旧版部署（docker compose down；数据卷与目录数据均保留）..."
 (cd "$LEGACY_DIR" && docker compose down) \
-  || die "down 失败——旧栈可能部分停止，请在 ${LEGACY_ABS} 执行 docker compose ps 检查；数据未受影响"
+  || die "down 失败——旧版部署可能已部分停止，请在 ${LEGACY_ABS} 执行 docker compose ps 检查；数据未受影响"
 
 # ---------------- 11. 准备目标目录 ----------------
 if [ -n "$TO_DIR" ]; then
@@ -317,7 +317,7 @@ env_set MINIO_ROOT_PASSWORD     "$MINIO_PASS"          "$ENV_FILE"
 log_ok "已生成 ${ENV_FILE}（沿用旧凭据、端口与数据目录；外接变量留空 = 本机默认）"
 
 # ---------------- 13. 校验配置与拉取镜像 ----------------
-validate_env "$ENV_FILE" || die "迁移生成的 .env 校验失败（旧栈已 down；回滚见下方提示）"
+validate_env "$ENV_FILE" || die "迁移生成的 .env 校验失败（旧版部署已下线；回滚见下方提示）"
 render_check "$DEST_DIR"
 
 rollback_hint() {
@@ -333,7 +333,7 @@ rollback_hint() {
 }
 
 pull_images "$DEST_DIR" "$OFFLINE" \
-  || { log_err "镜像不可用（旧栈已 down）"; rollback_hint; exit 1; }
+  || { log_err "镜像不可用（旧版部署已下线）"; rollback_hint; exit 1; }
 
 # ---------------- 14. 启动服务与健康检查 ----------------
 log_info "启动 docker-v2（docker compose up -d，schema 迁移由 server-migrate 先行完成）..."
@@ -350,9 +350,9 @@ echo
 echo "${bold}----- 后续操作 -----${reset}"
 echo "  1. 日常巡检:    ${SCRIPT_DIR}/check.sh ${DEST_DIR}"
 echo "  2. 切外接依赖:  ${SCRIPT_DIR}/configure.sh ${DEST_DIR}（迁移固定全 local；切外接在此操作，pg/CH/S3 有数据时搬迁单独规划）"
-echo "  3. 稳定运行后清理无消费方的旧卷（丢弃未排空的残留缓冲）:"
+echo "  3. 稳定运行后清理不再使用的旧数据卷（会丢弃其中未写入的残留缓冲）:"
 echo "       docker volume rm swanlab-house fluent-bit"
-[ -n "$TO_DIR" ] && echo "  4. 旧目录 ${LEGACY_ABS} 原样保留（回切旧架构需先 down 新栈）"
+[ -n "$TO_DIR" ] && echo "  4. 旧目录 ${LEGACY_ABS} 原样保留（回切旧架构需先下线 docker-v2 部署）"
 echo
 echo "${bold}----- 回滚（如需恢复旧架构）-----${reset}"
 rollback_hint

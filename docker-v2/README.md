@@ -35,7 +35,7 @@ Docker Compose 版私有化部署方案（v3.6.0）。
 ```bash
 cd docker-v2
 ./install.sh                 # 交互式安装到 ./swanlab
-./install.sh -s              # 免交互：本机四件套 + 默认副本数（冒烟/测试）
+./install.sh -s              # 免交互：数据服务全部本机部署 + 默认副本数（冒烟/测试）
 ./install.sh /opt/swanlab -d /data -p 80
 ./install.sh /opt/swanlab -o # 离线/内网：跳过 pull，校验本地镜像齐备
 ```
@@ -44,7 +44,7 @@ cd docker-v2
 
 > ⚠️ **本目录是模板目录，不可执行 `docker compose up -d`**：`.env.example` 的凭据字段为空，请通过 `install.sh` / `migrate.sh` 生成运行目录（默认 `swanlab/`）后操作。
 
-> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的 WAL 目录，共享目录会产生排他锁冲突。默认 `vector-1` 使用 `DATA_PATH/vector`，`vector-2` 使用 `DATA_PATH/vector-2`；新增实例按 `vector-N` 命名并挂载独立目录。旧 `vector/` 目录继续有效，请勿清空。
+> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的缓冲目录，共享目录会产生排他锁冲突。默认 `vector-1` 使用 `DATA_PATH/vector`，`vector-2` 使用 `DATA_PATH/vector-2`；新增实例按 `vector-N` 命名并挂载独立目录。旧 `vector/` 目录继续有效，请勿清空。
 
 > 📌 **自定义 Compose 请使用 `docker-compose.override.yaml`**：运行目录的 `docker-compose.yaml` 由模板维护，`upgrade.sh` 会用新模板覆盖它；新增 `vector-N`、调整镜像地址等需要保留的改动写入同目录的 `docker-compose.override.yaml`，Compose 会自动合并，升级会保留，并纳入升级快照与回滚。新增 `vector-3` 的最小写法（其余字段继承 `vector-2`）：
 >
@@ -64,15 +64,15 @@ cd docker-v2
 >         condition: service_healthy
 > ```
 
-House 经 `gateway:8080/vector` 发送指标，网关移除 `/vector` 前缀后转发到 Vector 根路径。路由仅对 internal 入口开放，无用户鉴权中间件。Docker healthcheck 和 Traefik 主动探活均使用 `:8686/ping`；主动探活间隔 5 秒、超时 2 秒。`/ping` 表示 HTTP 服务存活，不能证明下游写入或缓冲容量正常，管理 API 保持关闭。
+House 经 `gateway:8080/vector` 发送指标，网关移除 `/vector` 前缀后转发到 Vector 根路径。路由仅对 internal 入口开放，无用户鉴权中间件。Docker healthcheck 和 Traefik 主动探活均使用 `:8686/ping`；主动探活间隔 5 秒、超时 2 秒。`/ping` 表示 HTTP 服务存活，不能证明下游写入或缓冲容量正常，管理 API 保持关闭。Vector 配置中的 `${CLICKHOUSE_*}` 占位符由容器启动时 `config/vector/render.sh` 渲染（Vector 0.57 起默认关闭配置内插值），新增变量需同步修改该脚本。
 
-冷启动要求网关与所有 Vector 实例都健康。运行中一个实例故障后，流量在检测窗口后转到其他实例；在途请求仍可能失败。各实例的 WAL 互不复制，故障实例的积压需要该实例恢复后重放。House 的异步发送与有限重试保持原行为，本方案不提供任意故障下的端到端零丢失保证。
+冷启动要求网关与所有 Vector 实例都健康。运行中一个实例故障后，流量在检测窗口后转到其他实例；在途请求仍可能失败。各实例的磁盘缓冲互不复制，故障实例的积压需要该实例恢复后重放。House 的异步发送与有限重试保持原行为，本方案不提供任意故障下的端到端零丢失保证。
 
 **内部调用链的高可用边界**：`server → house`（`SS_HOUSE_URL`）和 `next → cloud`（`CLOUD_URL`）使用 Docker DNS 直连服务名，可分摊到多个运行中的副本；Docker DNS 不感知容器健康状态，故障副本在退出前仍可能收到请求。经 gateway 的外部请求（`/api`、`/api/house` 等）由 Traefik 主动探活摘除。若这两条内部链路也需要健康摘除，应改为经 gateway internal 入口转发并确认内部接口鉴权语义；当前版本不提供该保证。
 
 ## 部署形态与外接
 
-数据层四件套（postgres / redis / clickhouse / minio）由 `.env` 的 `COMPOSE_PROFILES` 控制本机部署或外接，逐项独立：
+数据层四个服务（postgres / redis / clickhouse / minio）由 `.env` 的 `COMPOSE_PROFILES` 控制本机部署或外接，逐项独立：
 
 ```text
 COMPOSE_PROFILES=postgres,redis,clickhouse,minio   # 全本机（默认）
@@ -98,7 +98,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `SWANLAB_VERSION` | `3.6.0` | 业务镜像 tag（自动加 `v` 前缀）；compose 不设回退默认，丢失会在防呆校验拦截 |
+| `SWANLAB_VERSION` | `3.6.0` | 业务镜像 tag（自动加 `v` 前缀）；compose 不设回退默认，丢失会在配置校验拦截 |
 | `EXPOSE_PORT` | `8000` | gateway 暴露端口 |
 | `DATA_PATH` | `./data` | 数据目录（相对运行目录或绝对路径） |
 | `DOCKER_SOCKET_PATH` | 自动探测 | rootless / OrbStack 与默认不同，install 自动写入 |
@@ -110,7 +110,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 ## 日常运维
 
 ```bash
-./check.sh ./swanlab    # 只读巡检：环境/目录/防呆/渲染/项目一致性/vector 实例/容器健康/磁盘
+./check.sh ./swanlab    # 只读巡检：环境/目录/配置校验/渲染/项目一致性/vector 实例/容器健康/磁盘
 ```
 
 - 输出 `[PASS]/[WARN]/[FAIL]` 汇总，退出码 `0`=无 FAIL、`1`=有 FAIL、`2`=目录不存在——可接入 CI / 监控。
@@ -129,20 +129,20 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 
 - 数据库 schema 由一次性服务 `server-migrate`（`prisma migrate deploy` + `node migrate.js`）在 server 副本启动前串行执行；迁移失败则中断启动过程。
 - 每次升级前自动 `pg_dump` 快照到 `backups/pre-upgrade-<ts>/`；`--rollback` 恢复配置（数据库快照按需手动导入，命令见其输出）。
-- 升级或回滚前必须在维护窗口暂停外部指标上报，并完成已接收请求的对账，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
-- 升级按当前配置暂停 House、停止旧 Vector writer，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不重命名 WAL；旧停止容器保留，升级不会自动删除 orphan 容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
-- 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部 WAL，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
+- 升级或回滚前必须在维护窗口暂停外部指标上报，并确认已接收的请求都处理完，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
+- 升级按当前配置暂停 House、停止旧 Vector 容器，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不改动缓冲目录；已停止的旧容器保留，升级不会自动删除已不在配置中的容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
+- 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部缓冲数据，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
 
 ## 存量迁移（旧版 docker → docker-v2）
 
-适用于旧版 `docker/`（fluent-bit 指标链路）部署。迁移仅支持数据层四件套均为本机容器的形态；外接在迁移完成后通过 `configure.sh` 切换。
+适用于旧版 `docker/`（fluent-bit）部署。迁移仅支持数据层四个服务都在本机运行的形态；外接在迁移完成后通过 `configure.sh` 切换。
 
-参数是旧版运行目录，即旧 `install.sh` 生成的 `swanlab/`（包含 `.env`、`docker-compose.yaml`、`fluent-bit.conf`、`data/`），不是本仓库的 `docker/` 模板目录。旧栈需完整运行（数据层四件套 + 摄入链路）。
+参数是旧版运行目录，即旧 `install.sh` 生成的 `swanlab/`（包含 `.env`、`docker-compose.yaml`、`fluent-bit.conf`、`data/`），不是本仓库的 `docker/` 模板目录。旧版部署需完整运行（数据层四个服务 + 数据上报服务）。
 
 ```bash
 ./migrate.sh /opt/swanlab                       # 旧运行目录在 /opt/swanlab
 ./migrate.sh ../docker/swanlab                  # 旧版在 self-hosted/docker/ 下安装
-./migrate.sh /opt/swanlab --to /data2/swanlab   # 排空后 rsync 数据到新目录，旧目录原样保留
+./migrate.sh /opt/swanlab --to /data2/swanlab   # 写入完成后 rsync 数据到新目录，旧目录原样保留
 ./migrate.sh /opt/swanlab -o -y                 # 离线 + 免确认
 ```
 
@@ -151,7 +151,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 - PostgreSQL / Redis / ClickHouse / MinIO 数据目录原地保留，凭据沿用旧值；
 - 数据库结构由 `server-migrate` 一次性服务在 server 副本启动前串行升级；
 - 配置快照仅备份文本（compose / `.env` / metadata）：迁移不修改数据卷，支持回滚；
-- 排空判定：断开摄入后轮询 ClickHouse 行数稳定；
+- 写入完成判定：停止数据上报后轮询 ClickHouse 行数稳定；
 - 回滚：恢复旧 compose/`.env` 后 `up -d` 完成回退（收尾输出提供对应命令）；
 - 确认不再需要回滚后，可清理旧卷：`docker volume rm swanlab-house fluent-bit`。
 
@@ -181,5 +181,5 @@ swanlab/
 - **磁盘 90GiB 建议的依据？** 每个 Vector 实例四个 sink 共 40GiB 缓冲，默认两实例 80GiB，另预留至少 10GiB 运行空间；新增实例按 40GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
 - **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
 - **`configure.sh` 能直接用于旧版吗？** 不能，旧版先 `migrate.sh`；`configure.sh` 只切 docker-v2 的数据层连接，确认生效时只重建受影响的服务。
-- **新增 `vector-3` 后如何升级？** 将 `vector-3` 定义写入 `docker-compose.override.yaml`（见上文示例）；`upgrade.sh` 会按合并后的配置启动并排空所有 `vector-N`。直接改在 `docker-compose.yaml` 中的实例会在升级前被检测到并中止，避免模板覆盖后实例停摆、WAL 不参与排空。
+- **新增 `vector-3` 后如何升级？** 将 `vector-3` 定义写入 `docker-compose.override.yaml`（见上文示例）；`upgrade.sh` 会按合并后的配置启动并排空所有 `vector-N`。直接改在 `docker-compose.yaml` 中的实例会在升级前被检测到并中止，避免模板覆盖后实例停摆、缓冲目录不参与排空。
 - **如何切换镜像源 / 命名空间？** 在运行目录的 `docker-compose.override.yaml` 中覆盖对应服务的 `image`，避免升级时被模板覆盖；离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。
