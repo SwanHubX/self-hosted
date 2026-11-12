@@ -3,6 +3,7 @@
 .DS_Store
 .vscode
 .zed
+/CLAUDE.md
 
 # Playground
 playground
@@ -11,4 +12,9 @@ playground
 .key
 data
 .env
+.env.tmp.*
 docker/swanlab
+docker-v2/swanlab
+# 仓库根执行 install.sh 的默认运行目录
+*/swanlab/
+*.legacy.bak

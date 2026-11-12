@@ -6,11 +6,11 @@
   <img alt="SwanLab" src="readme_files/swanlab-logo-single.svg" width="70" height="70">
 </picture>
 
-<h1>Self-Hosted SwanLab</h1>
+<h1>SwanLab Self-Hosted</h1>
 
-Self-hosted SwanLab service supports Docker, cloud app, and fully offline deployment
+Deploy SwanLab on your own infrastructure with Docker Compose, Kubernetes, or in air-gapped environments
 
-<a href="https://swanlab.cn">🔥 Online SwanLab</a> · <a href="https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html">📃 Documentation</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">Report Issues</a> · <a href="https://hub.docker.com/search?q=swanlab">DockerHub</a>
+<a href="https://swanlab.cn">🔥 SwanLab Online</a> · <a href="https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html">📃 Documentation</a> · <a href="https://github.com/SwanHubX/self-hosted/issues">Report an Issue</a> · <a href="https://hub.docker.com/search?q=swanlab">Docker Hub</a>
 
 [中文](./README.md) / English
 
@@ -18,250 +18,229 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 ## 📖 Table of Contents
 
-- [🌟 Recent Updates](#-recent-updates)
-- [🚄 Quick Deployment](#-quick-deployment)
-- [🔌 SDK Version Compatibility](#-sdk-version-compatibility)
-- [🚀 Upgrade Version](#-upgrade-version)
+- [🚄 Quick Start](#-quick-start)
+- [🚀 Upgrading](#-upgrading)
+- [🔌 SDK Compatibility](#-sdk-compatibility)
+- [🌟 Release Notes](#-release-notes)
 - [📚 Resources](#-resources)
 
 <br>
 
-## 🌟 Recent Updates
+## 🚄 Quick Start
 
-> 🤔 **How to upgrade from an old version**：After syncing the project repository, run `cd docker && ./upgrade.sh` to upgrade to version `v3.6.0`
+### Docker Compose Single-Instance Deployment
 
-**v3.6.0 (2026.11.11)**
-
-- 📊 Added swanlab.Histogram parameter distribution chart, supporting passing in statistical numerical distributions of parameters such as model gradients.
-- ⚙️ Added partition settings and chart sorting.
-- 🗂️ Added metric directory, supporting browsing metrics layer by layer in a tree-structured directory, making the metric hierarchy clearer.
-- 🐞 Fixed some chart interaction performance issues using WASM.
-
-**v3.5.0 (2026.10.13)**
-
-- 📊 Added experiment focus feature: hovering over the corresponding legend or experiment automatically highlights it.
-- 🦜 Optimized the experiment pinning feature in the sidebar, supporting more flexible experiment filtering methods.
-- 📉 Added experiment group aggregation settings.
-- 🐞 Fixed rendering anomalies in line charts when encountering extreme values of ±1e308.
-
-**v3.4.0 (2026.09.17)**
-
-- 📊 Added "Quick Create Chart" feature to improve chart configuration efficiency within views.
-- 📊 Added independent URLs for each view to facilitate sharing.
-- 👥 "Add Comparison Experiment" now supports selecting experiments from collaborators' projects.
-
-**v3.3.0 (2026.09.01)**
-
-- 📊 Added the "Metric Expression" feature, which supports calculating and combining multiple metrics, and visualizing the calculation results.
-- ⚙️ Added the [swanlab.define_metric()](https://docs.swanlab.cn/en/api/py-define_metric.html) API, which allows defining chart behaviors before logging metrics, including customizing the X-axis, chart grouping, etc.
-- 🐞 Fixed an issue where users with project write-only permissions encountered a 403 error when initializing if the project already existed. Now the system will first query the project and only create it if it does not exist.
-
-<details><summary>Full Changelog</summary>
-
-**v3.2.0 (2026.08.24)**
-
-- 🗑 Added Recycle Bin feature. Deleted projects and experiments will be moved to the Recycle Bin, supporting restoration or permanent deletion.
-- 🔬 Added cross-project experiment comparison. Experiments from other projects can be added for comparison.
-- 🐞 Fixed an issue where empty system charts could not be hidden.
-- 🐞 Fixed an issue where the experiment color change in comparison view was not synced to the single experiment view.
-
-**v3.1.1 (2026.08.04)**
-
-- 📉 Support "Import Runs" for cross-project comparison experiments
-- 📈 The maximum number of pinned experiments has been increased to 20; the maximum number of experiments/groups displayable in line charts has been increased to 25
-
-**v3.1.0 (2026-07-29)**
-
-- 📊: Added support for displaying NaN data points; added a prompt for the group aggregation limit
-- 🐞: Fixed an issue where empty charts could not be hidden in multi-view mode
-
-**v3.0.0 (2026.07.21)**
-
-- 📊 New multi-view interactive dashboard online, requires SwanLab ≥ 0.9.0+ SDK
-
-**v2.8.1 (2026.06.15)**
-
-- Feature: Support HTML charts
-- Optimize: When searching experiments, the chart comparison view updates at the same time
-- Optimize: Improve compatibility with SDK v0.8.0
-- Deployment: Support the [Prometheus monitoring solution](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html)
-
-**v2.8.0 (2026.05.29)**
-
-- Fix some known issues.
-
-**v2.7.4 (2026.04.27)**
-
-- Release project favorites and fix some known issues
-
-**v2.7.3 (2026.04.08)**
-
-- Support experiment favorites, baseline experiments, and file saving features
-
-**v2.7.1 (2026.03.06)**
-
-- Fix some known issues
-
-**v2.7.0 (2026.01.29)**
-
-- Optimize rendering performance in scenarios with large-scale experiments and high-volume metrics
-
-**v2.6.3 (2026.01.19)**
-
-- Add heartbeat detection, optimize the rendering performance of charts
-
-**v2.6.2 (2025.12.19)**
-
-- Fix known issues, sync cloud service updates, support swanlab sdk v0.7.4
-
-**v2.5.1 (2025.12.10)**
-
-- Allow replacing minio with other S3 protocol compatible object storage services
-
-**v2.5.0 (2025.12.5)**
-
-- Developed a more comprehensive management dashboard for enterprise edition
-
-**v2.4 (2025.11.24)**
-
-- No longer need to open port 9000 for minio
-- Data points in line charts carry timestamp information
-
-**v2.3 (2025.11.17)**
-
-- Support experiment grouping
-
-**v2.2 (2025.11.6)**
-
-- Support custom x-axis for line charts
-
-**v2.1 (2025.9.30)**
-
-- Launch new chart view UI
-- Sync to the latest public cloud version
-
-**v2.0 (2025.9.1)**
-
-- Update permission system
-
-**v1.3 (2025.7.8)**
-
-- Feature: Sync to the latest public cloud version
-
-**v1.2 (2025.5.30)**
-
-- Feature: Line chart creation and editing features launched; configure charts with data source selection, supporting multiple metrics in the same chart
-- Feature: Add Tag feature for experiments
-- Feature: Support Log Scale for line graphs; support drag-and-drop grouping; add swanlab.OpenApi open interfaces
-- Feature: Add 「Default Space」 and 「Default Visibility」 configuration, used to specify that projects are created under the corresponding organization by default
-- Optimize: Fix data loss when uploading large amounts of metrics
-- Optimize: Greatly improve the performance when uploading metrics
-- BugFix: Fix the issue where some experiments cannot be automatically closed
-
-**v1.1 (2025.4.27)**
-SwanLab images have been updated to v1.1. Users who are deploying for the first time can directly run `install.sh` to access v1.1, and users of the original v1 version can directly run `docker/upgrade.sh` to update and restart the `docker-compose.yaml`.
-</details>
-
-<br>
-
-## 🚄 Kubernetes Quick Deployment
-
-Please view [this document](https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html)
-
-## 🚄 Docker Quick Deployment
-
-### 1. Manual Deployment
-
-Clone the repository:
+Recommended for single-node or small-to-medium team deployments. See [docker/README_EN.md](./docker/README_EN.md) and the [Docker Deployment Guide](https://docs.swanlab.cn/en/self_host/docker/deploy.html) for configuration details.
 
 ```bash
 git clone https://github.com/swanhubx/self-hosted.git
 cd self-hosted/docker
 ```
 
-**Method 1:** Deploy using [DockerHub](https://hub.docker.com/search?q=swanlab) image source:
+- **Global (Docker Hub registry):**
+  ```bash
+  ./install-dockerhub.sh
+  ```
+- **China Mainland (Mirror registry):**
+  ```bash
+  ./install.sh
+  ```
 
-```bash
-./install-dockerhub.sh
-```
+### Kubernetes
 
-**Method 2:** Quick deployment for users in China:
-
-```bash
-./install.sh
-```
-
-### 2. One-click Script Deployment
-
-**Method 1:** Deploy using [DockerHub](https://hub.docker.com/search?q=swanlab) image source:
-
-```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install-dockerhub.sh && bash install.sh
-```
-
-**Method 2:** Quick deployment for users in China:
-
-```bash
-curl -sO https://raw.githubusercontent.com/swanhubx/self-hosted/main/docker/install.sh && bash install.sh
-```
-
-See also: [docker/README.md](./docker/README.md) for more details
-
-Tutorial documentation: [Deploy with Docker](https://docs.swanlab.cn/en/self_host/docker/deploy.html)
+For production-grade, high-availability cluster deployments, refer to the [Kubernetes Deployment Guide](https://docs.swanlab.cn/en/self_host/kubernetes/deploy.html).
 
 <br>
 
-## 🚀 Upgrade Version
+## 🚀 Upgrading
 
-After cloning the repository and syncing the latest code, run `./upgrade.sh` under the `docker` directory to upgrade and restart to the latest version.
+Pull the latest changes from the repository and run the upgrade script in the `docker` directory to perform an in-place upgrade:
 
 ```bash
+git pull
 cd docker
-bash ./upgrade.sh
+./upgrade.sh
 ```
+
+> 💡 **Registry Migration Note (upgrading from `< v3.3.0`):** Starting with `v3.3.0`, all infrastructure and application images are hosted under `repo.swanlab.cn`. During your first upgrade from an earlier release, `upgrade.sh` will automatically update the image references in `docker-compose.yaml` and pull the new images. You can clean up legacy images afterward with `docker image prune`.
 
 <br>
 
-## 🔌 SDK Version Compatibility
+## 🔌 SDK Compatibility
 
-The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https://github.com/SwanHubX/SwanLab) Python library) is shown in the following table:
+The table below lists the compatible [`swanlab`](https://github.com/SwanHubX/SwanLab) Python SDK versions for each self-hosted release:
 
-| Self-hosted Version | Supported SDK Version                     |
-| ------------------- | ----------------------------------------- |
-| v3.6.0              | v0.7.6 ~ v0.10.5                          |
-| v3.5.0              | v0.7.6 ~ v0.10.4                          |
-| v3.4.0              | v0.7.6 ~ v0.10.4                          |
-| v3.3.0              | v0.7.6 ~ v0.10.4                          |
-| v3.2.0              | v0.7.6 ~ v0.9.x                           |
-| v3.1.1              | v0.7.6 ~ v0.9.x                           |
-| v3.1.0              | v0.7.4 ~ v0.9.x                           |
-| v3.0.0              | v0.7.6 ~ v0.9.x                           |
-| v2.8.1              | v0.7.6 ~ v0.8.4                           |
-| v2.8.0              | v0.7.6 ~ v0.8.4                           |
-| v2.7.4              | v0.7.4 ~ v0.7.20                          |
-| v2.7.3              | v0.7.4 ~ v0.7.20                          |
-| v2.7.1              | v0.7.4 ~ v0.7.20                          |
-| v2.7.0              | v0.7.4 ~ v0.7.20                          |
-| v2.6.3              | v0.7.4 ~ v0.7.20                          |
-| v2.6.2              | v0.7.4 ~ v0.7.20                          |
-| v2.5.0              | v0.6.0 ~ v0.7.3                           |
-| v2.4                | v0.6.0 ~ v0.7.3                           |
-| v2.3                | v0.6.0 ~ v0.7.3                           |
-| v2.2                | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v2.1                | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v2.0                | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v1.3                | v0.6.0 ~ v0.7.3 (except grouping feature) |
-| v1.2                | v0.6.0 ~ v0.6.4                           |
-| v1.1                | v0.6.0 ~ v0.6.4                           |
+| Self-Hosted Version | Compatible Python SDK Versions       |
+| ------------------- | ------------------------------------ |
+| v3.6.0              | v0.7.6 ~ v0.10.5                     |
+| v3.5.0              | v0.7.6 ~ v0.10.4                     |
+| v3.4.0              | v0.7.6 ~ v0.10.4                     |
+| v3.3.0              | v0.7.6 ~ v0.10.4                     |
+| v3.2.0              | v0.7.6 ~ v0.9.x                      |
+| v3.1.1              | v0.7.6 ~ v0.9.x                      |
+| v3.1.0              | v0.7.6 ~ v0.9.x                      |
+| v3.0.0              | v0.7.6 ~ v0.9.x                      |
+| v2.8.1              | v0.7.6 ~ v0.8.4                      |
+| v2.8.0              | v0.7.6 ~ v0.8.4                      |
+| v2.7.4              | v0.7.4 ~ v0.7.20                     |
+| v2.7.3              | v0.7.4 ~ v0.7.20                     |
+| v2.7.1              | v0.7.4 ~ v0.7.20                     |
+| v2.7.0              | v0.7.4 ~ v0.7.20                     |
+| v2.6.3              | v0.7.4 ~ v0.7.20                     |
+| v2.6.2              | v0.7.4 ~ v0.7.20                     |
+| v2.5.0              | v0.6.0 ~ v0.7.3                      |
+| v2.4                | v0.6.0 ~ v0.7.3                      |
+| v2.3                | v0.6.0 ~ v0.7.3                      |
+| v2.2                | v0.6.0 ~ v0.7.3 (excluding grouping) |
+| v2.1                | v0.6.0 ~ v0.7.3 (excluding grouping) |
+| v2.0                | v0.6.0 ~ v0.7.3 (excluding grouping) |
+| v1.3                | v0.6.0 ~ v0.7.3 (excluding grouping) |
+| v1.2                | v0.6.0 ~ v0.6.4                      |
+| v1.1                | v0.6.0 ~ v0.6.4                      |
 
-[dockerhub-shield]: https://img.shields.io/docker/v/swanlab/swanlab-next?color=369eff&label=docker&labelColor=black&logoColor=white&style=flat-square
-[dockerhub-link]: https://hub.docker.com/r/swanlab/swanlab-next/tags
+<br>
+
+## 🌟 Release Notes
+
+**v3.6.0 (2026.11.11)**
+
+- 📊 **Histogram Visualization**: Added `swanlab.Histogram` to log and visualize parameter distributions such as model weights and gradients.
+- ⚙️ **Section Settings & Chart Sorting**: Added support for customizing dashboard sections and ordering charts.
+- 🗂️ **Hierarchical Metric Tree**: Introduced a tree-view directory for navigating nested metrics.
+- 🐞 **Performance**: Improved chart interaction responsiveness powered by WebAssembly (WASM).
+
+**v3.5.0 (2026.10.13)**
+
+- 📊 **Run Focus Mode**: Hover over a legend item or run to automatically highlight its corresponding series.
+- 🦜 **Enhanced Run Pinning**: Added more flexible filtering options for pinned runs in the sidebar.
+- 📉 **Run Group Aggregation**: Added aggregation controls for grouped runs.
+- 🐞 **Bug Fix**: Fixed line chart rendering glitches caused by extreme floating-point values (`±1e308`).
+
+**v3.4.0 (2026.09.17)**
+
+- 📊 **Quick Chart Creation**: Create and configure charts directly within dashboard views.
+- 🔗 **Shareable View Links**: Each dashboard view now generates a dedicated URL for easy sharing.
+- 👥 **Cross-Collaborator Comparison**: Compare runs directly from collaborator projects.
+
+**v3.3.0 (2026.09.01)**
+
+> ⚠️ **Note**: Starting with this release, all infrastructure and application images are served from `repo.swanlab.cn`. The first upgrade automatically rewrites image references in `docker-compose.yaml` and pulls the updated images. Legacy images can be removed with `docker image prune`.
+
+- 📊 **Metric Expressions**: Compute and visualize derived metrics by combining multiple existing metrics.
+- ⚙️ **Custom Chart Definitions**: Added the [`swanlab.define_metric()`](https://docs.swanlab.cn/en/api/py-define_metric.html) API to configure custom X-axes and chart grouping prior to logging metrics.
+- 🐞 **Permission Fix**: Fixed a `403 Forbidden` error during initialization for users with write-only permissions when targeting an existing project (the SDK now queries the project first and only creates it if absent).
+
+<details><summary>Previous Releases</summary>
+
+**v3.2.0 (2026.08.24)**
+
+- 🗑 **Trash / Recycle Bin**: Deleted projects and runs are now moved to the Trash, where they can be restored or permanently purged.
+- 🔬 **Cross-Project Comparison**: Compare runs across different projects in the same view.
+- 🐞 **Bug Fix**: Fixed an issue where empty system charts could not be hidden.
+- 🐞 **Bug Fix**: Fixed an issue where run color changes in the comparison view did not sync to the single-run view.
+
+**v3.1.1 (2026.08.04)**
+
+- 📉 Added support for importing runs across projects for comparison.
+- 📈 Increased the maximum number of pinned runs to 20, and the maximum number of displayed runs/groups per line chart to 25.
+
+**v3.1.0 (2026.07.29)**
+
+- 📊 Added support for rendering `NaN` data points and displaying group aggregation limit notices.
+- 🐞 Fixed an issue where empty charts could not be hidden in multi-view mode.
+
+**v3.0.0 (2026.07.21)**
+
+- 📊 Launched the new multi-view interactive dashboard (requires `swanlab >= 0.9.0` SDK).
+
+**v2.8.1 (2026.06.15)**
+
+- Feature: Added support for HTML charts.
+- Improvement: Searching runs now dynamically filters the chart comparison view.
+- Improvement: Enhanced compatibility with SDK v0.8.0.
+- Operations: Added support for [Prometheus monitoring](https://docs.swanlab.cn/en/self_host/kubernetes/monitor-logging.html).
+
+**v2.8.0 (2026.05.29)**
+
+- Minor bug fixes and stability improvements.
+
+**v2.7.4 (2026.04.27)**
+
+- Added project favorites (star) and fixed known issues.
+
+**v2.7.3 (2026.04.08)**
+
+- Added support for starring runs, setting baseline runs, and saving artifacts/files.
+
+**v2.7.1 (2026.03.06)**
+
+- Minor bug fixes and stability improvements.
+
+**v2.7.0 (2026.01.29)**
+
+- Improved frontend rendering performance for large-scale experiments and high-cardinality metrics.
+
+**v2.6.3 (2026.01.19)**
+
+- Added heartbeat detection and optimized chart rendering performance.
+
+**v2.6.2 (2025.12.19)**
+
+- Bug fixes, feature parity updates with SwanLab Cloud, and support for `swanlab` SDK v0.7.4.
+
+**v2.5.1 (2025.12.10)**
+
+- Added support for replacing the bundled MinIO service with any S3-compatible external object storage.
+
+**v2.5.0 (2025.12.05)**
+
+- Introduced a comprehensive administration dashboard for the Enterprise Edition.
+
+**v2.4 (2025.11.24)**
+
+- Removed the requirement to expose MinIO port `9000` externally.
+- Added timestamp metadata to line chart data points.
+
+**v2.3 (2025.11.17)**
+
+- Added support for run grouping.
+
+**v2.2 (2025.11.06)**
+
+- Added support for custom X-axes in line charts.
+
+**v2.1 (2025.09.30)**
+
+- Launched redesigned chart view UI and synced features with SwanLab Cloud.
+
+**v2.0 (2025.09.01)**
+
+- Revamped the role-based access control (RBAC) and permission system.
+
+**v1.3 (2025.07.08)**
+
+- Synced latest features from SwanLab Cloud.
+
+**v1.2 (2025.05.30)**
+
+- Feature: Added line chart creation, editing, and multi-metric data source selection.
+- Feature: Added experiment run tags.
+- Feature: Added logarithmic scale (Log Scale) for line charts, drag-and-drop group reordering, and `swanlab.OpenApi` programmatic interfaces.
+- Feature: Added "Default Space" and "Default Visibility" settings for newly created projects.
+- Improvement: Significantly improved metric ingestion throughput and resolved data loss under high concurrency.
+- Bug Fix: Fixed an issue where certain runs did not transition to a completed state automatically.
+
+**v1.1 (2025.04.27)**
+
+- Updated container images to v1.1. New installations can run `install.sh` directly; existing v1.0 deployments can upgrade in place via `docker/upgrade.sh`.
+
+</details>
 
 <br>
 
 ## 📚 Resources
 
-- [Offline deployment for pure offline environments](https://docs.swanlab.cn/en/self_host/docker/offline-deployment.html)
-- [Tencent Cloud app deployment](https://docs.swanlab.cn/en/self_host/alibabacloud-computenest.html)
-- [Alibaba Cloud Compute Nest deployment](https://docs.swanlab.cn/en/self_host/tencentcloud-app.html)
-- [FAQ](https://docs.swanlab.cn/en/self_host/kubernetes/faq.html)
+- [Air-Gapped (Offline) Deployment Guide](https://docs.swanlab.cn/en/self_host/docker/offline-deployment.html)
+- [Alibaba Cloud Compute Nest Deployment](https://docs.swanlab.cn/en/self_host/alibabacloud-computenest.html)
+- [Tencent Cloud Marketplace Deployment](https://docs.swanlab.cn/en/self_host/tencentcloud-app.html)
+- [Frequently Asked Questions (FAQ)](https://docs.swanlab.cn/en/self_host/kubernetes/faq.html)
