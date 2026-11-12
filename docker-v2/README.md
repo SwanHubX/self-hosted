@@ -1,6 +1,6 @@
 # SwanLab Self-Hosted 部署指南（docker-v2）
 
-`docker-v2` 是新版的 Docker Compose 私有化部署方案（`v3.6.0`）。相比[旧版 docker 单实例方案](../docker/README.md) ，支持**业务服务多副本**、**Vector 高性能指标缓冲管道**以及**数据库/对象存储按需外接配置**。
+`docker-v2` 是新版的 Docker Compose 私有化部署方案。相比[旧版 docker 单实例方案](../docker/README.md) ，支持**业务服务多副本**、**Vector 高性能指标缓冲管道**以及**数据库/对象存储按需外接配置**。
 
 ## 目录
 
