@@ -1,187 +1,191 @@
-# SwanLab Self-Hosted（docker-v2）
+# SwanLab Self-Hosted 部署指南（docker-v2）
 
-Docker Compose 版私有化部署方案（v3.6.0）。
+`docker-v2` 是新版的 Docker Compose 私有化部署方案（`v3.6.0`）。相比[旧版 docker 单实例方案](../docker/README.md) ，支持**业务服务多副本**、**Vector 高性能指标缓冲管道**以及**数据库/对象存储按需外接配置**。
+
+## 目录
+
+- [1. 环境要求](#1-环境要求)
+- [2. 快速部署](#2-快速部署)
+- [3. 离线与内网部署](#3-离线与内网部署)
+- [4. 配置与外接服务](#4-配置与外接服务)
+- [5. 日常运维与扩缩容](#5-日常运维与扩缩容)
+- [6. 升级与回滚](#6-升级与回滚)
+- [7. 旧版迁移](#7-旧版迁移)
+- [8. 架构与常见问题](#8-架构与常见问题)
+
+---
+
+## 1. 环境要求
+
+| 项目               | 要求                 | 说明                                                                                                           |
+| :----------------- | :------------------- | :------------------------------------------------------------------------------------------------------------- |
+| **Docker Engine**  | `>= 20.10`           | 可通过 [`../scripts/install-docker.sh`](../scripts/install-docker.sh) 安装                                     |
+| **Docker Compose** | **`>= v2.24`**       | 必需；可通过系统包管理器或 [`../scripts/install-docker-compose.sh`](../scripts/install-docker-compose.sh) 升级 |
+| **配置要求**       | `≥ 8 核 16GB`        | 高负载场景下，较低的配置可能导致部分功能无法正常运行                                                           |
+| **磁盘可用空间**   | **建议 `>= 90 GiB`** | 数据分区；2 个 Vector 实例要求预留 80 GiB 缓冲                                                                 |
+| **网络端口**       | 默认 `8000`          | Web 网关入口，可通过 `-p` 自定义                                                                               |
+
+---
+
+## 2. 快速部署
+
+> **⚠️ 注意**：`docker-v2/` 是模板目录，请勿直接在此执行 `docker compose up -d`。请通过 `install.sh` 生成运行目录（默认 `./swanlab`）。
+
+### 2.1 执行安装
+
+```bash
+git clone https://github.com/SwanHubX/self-hosted.git
+
+cd self-hosted/docker-v2
+
+# 交互式安装（推荐：按提示配置目录、端口及是否外接数据库服务）
+./install.sh
+```
+
+**参数说明：**
+
+| 参数            | 默认值      | 说明                                                       |
+| :-------------- | :---------- | :--------------------------------------------------------- |
+| `[运行目录]`    | `./swanlab` | 第一个位置参数，存放生成的 `.env` 与 `docker-compose.yaml` |
+| `-d <路径>`     | `./data`    | 数据持久化目录（相对运行目录或绝对路径）                   |
+| `-p <端口>`     | `8000`      | 网关暴露端口                                               |
+| `-s`            | 关闭        | 跳过交互，数据服务全部本机部署                             |
+| `-o, --offline` | 关闭        | 离线模式：跳过 `pull`，仅校验本地镜像                      |
+
+### 2.2 验证与访问
+
+- **浏览器访问**：`http://<服务器IP>:<端口>`（默认 `http://localhost:8000`）
+- **健康巡检**：
+  ```bash
+  ./check.sh ./swanlab
+  ```
+
+### 2.3 服务拓扑结构与目录说明
 
 ```text
- :8000 ──► gateway(traefik 3.6)  ── labels 路由，docker provider 感知副本
-                        │  /api        /api/auth  /api/house   /
-                        ▼      ▼           ▼          ▼         ▼
-                  swanlab-server  swanlab-auth  swanlab-house  swanlab-next ──► swanlab-cloud
-                    ×2 副本         ×2 副本       ×2 副本        ×2 副本        ×1 副本
-                        │                            │ HTTP 指标
-                        ▼                            ▼
-                 postgres / redis              gateway:8080/vector
-                 clickhouse / minio              │  内部负载均衡 + /ping 探活
-                 （独立 profile，可外接）         ▼
-                                        vector-1          vector-2
-                                        data/vector-1/    data/vector-2/
-                                               │ 独立 disk buffer
-                                               ▼
-                                              clickhouse
+ :8000 ──► gateway (Traefik 3.6)
+                ├── /api        ──► swanlab-server (×2) ──► PostgreSQL / Redis / MinIO
+                ├── /api/auth   ──► swanlab-auth   (×2)
+                ├── /           ──► swanlab-next   (×2) ──► swanlab-cloud (×1)
+                └── /api/house  ──► swanlab-house  (×2)
+                                         │ HTTP 指标
+                                         ▼
+                                gateway:8080/vector (内部负载均衡 + /ping 探活)
+                                   ├──► vector-1 (data/vector-1/)
+                                   └──► vector-2 (data/vector-2/)
+                                         │
+                                         ▼
+                                    ClickHouse
 ```
 
-与旧版 [`docker/`](../docker/README.md) 的差异：Vector 默认双实例（`vector-1` / `vector-2`，可按 `vector-N` 扩展）指标管道、Traefik 内部负载均衡、业务服务多副本，以及可逐项外接的数据服务。
-
-## 环境要求
-
-| 项 | 要求 | 说明 |
-|---|---|---|
-| Docker Compose | **≥ v2.24** | `depends_on.required` 长语法依赖此版本，所有脚本启动前校验 |
-| 磁盘剩余 | **建议 ≥ 90GiB**（数据目录所在分区） | 每个实例四个 10GiB 缓冲，默认两实例共 80GiB，另留至少 10GiB 运行余量；新增实例按 40GiB/个累加，ClickHouse 等数据增长需另行规划 |
-| 端口 | 默认 `8000` 可改 | gateway web 入口 |
-
-## 快速开始
-
-```bash
-cd docker-v2
-./install.sh                 # 交互式安装到 ./swanlab
-./install.sh -s              # 免交互：数据服务全部本机部署 + 默认副本数（冒烟/测试）
-./install.sh /opt/swanlab -d /data -p 80
-./install.sh /opt/swanlab -o # 离线/内网：跳过 pull，校验本地镜像齐备
-```
-
-离线镜像打包：`scripts/pull-images.sh --v2 --save` → 传输 → 目标机 `docker load` → `install.sh -o`。
-
-> ⚠️ **本目录是模板目录，不可执行 `docker compose up -d`**：`.env.example` 的凭据字段为空，请通过 `install.sh` / `migrate.sh` 生成运行目录（默认 `swanlab/`）后操作。
-
-> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的缓冲目录，共享目录会产生排他锁冲突。`vector-N` 固定挂载 `DATA_PATH/vector-N`，新增实例按 `vector-N` 命名并挂载独立目录。
-
-> 📌 **自定义 Compose 请使用 `docker-compose.override.yaml`**：运行目录的 `docker-compose.yaml` 由模板维护，`upgrade.sh` 会用新模板覆盖它；新增 `vector-N`、调整镜像地址等需要保留的改动写入同目录的 `docker-compose.override.yaml`，Compose 会自动合并，升级会保留，并纳入升级快照与回滚。新增 `vector-3` 的最小写法（其余字段继承 `vector-2`）：
->
-> ```yaml
-> services:
->   vector-3:
->     extends:
->       file: docker-compose.yaml
->       service: vector-2
->     volumes:
->       - ${DATA_PATH:-./data}/vector-3:/var/lib/vector
->
->   # 冷启动时让 House 等待新实例健康
->   swanlab-house:
->     depends_on:
->       vector-3:
->         condition: service_healthy
-> ```
-
-House 经 `gateway:8080/vector` 发送指标，网关移除 `/vector` 前缀后转发到 Vector 根路径。路由仅对 internal 入口开放，无用户鉴权中间件。Docker healthcheck 和 Traefik 主动探活均使用 `:8686/ping`；主动探活间隔 5 秒、超时 2 秒。`/ping` 表示 HTTP 服务存活，不能证明下游写入或缓冲容量正常，管理 API 保持关闭。Vector 配置中的 `${CLICKHOUSE_*}` 占位符由容器启动时 `config/vector/render.sh` 渲染（Vector 0.57 起默认关闭配置内插值），新增变量需同步修改该脚本。
-
-冷启动要求网关与所有 Vector 实例都健康。运行中一个实例故障后，流量在检测窗口后转到其他实例；在途请求仍可能失败。各实例的磁盘缓冲互不复制，故障实例的积压需要该实例恢复后重放。House 的异步发送与有限重试保持原行为，本方案不提供任意故障下的端到端零丢失保证。
-
-**内部调用链的高可用边界**：`server → house`（`SS_HOUSE_URL`）和 `next → cloud`（`CLOUD_URL`）使用 Docker DNS 直连服务名，可分摊到多个运行中的副本；Docker DNS 不感知容器健康状态，故障副本在退出前仍可能收到请求。经 gateway 的外部请求（`/api`、`/api/house` 等）由 Traefik 主动探活摘除。若这两条内部链路也需要健康摘除，应改为经 gateway internal 入口转发并确认内部接口鉴权语义；当前版本不提供该保证。
-
-## 部署形态与外接
-
-数据层四个服务（postgres / redis / clickhouse / minio）由 `.env` 的 `COMPOSE_PROFILES` 控制本机部署或外接，逐项独立：
-
-```text
-COMPOSE_PROFILES=postgres,redis,clickhouse,minio   # 全本机（默认）
-COMPOSE_PROFILES=redis,clickhouse,minio            # 外接 pg（需填 DATABASE_URL）
-SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对象存储
-```
-
-**安装时**选择外接：`install.sh` 交互中逐项确认。
-**安装后**切换外接：
-
-```bash
-./configure.sh ./swanlab           # 交互式逐项切换（变更前自动备份 .env）
-./configure.sh ./swanlab --status  # 只读查看当前形态
-```
-
-**ClickHouse 系统日志**：本机 ClickHouse 默认关闭 `system` 下的 `*_log` 表（仅保留 crash_log，7 天 TTL），避免日志无限增长占满磁盘。升级/迁移会把存量 `system.*_log` 表统一设置为 7 天 TTL，后台按分区回收；外接 ClickHouse 需自行在实例侧处理。
-
-切换只改连接指向，不迁移数据（外接→本机 = 空库/空桶起步，本机→外接需预先准备实例与桶）。
-
-配置写入后会询问是否执行 `docker compose up -d` 生效；确认后按配置差异重建受影响的服务（不是全量重启），未变更的容器保持运行。
-
-**存量 docker 版用户**：迁移与外接是两步操作——先 `migrate.sh`（固定全 local，数据完整），再 `configure.sh` 切外接。`configure.sh` 只适用于 docker-v2 运行目录，不能直接对旧版目录执行。见下文「存量迁移」。
-
-## 配置说明（运行目录 `swanlab/.env`）
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `SWANLAB_VERSION` | `3.6.0` | 业务镜像 tag（自动加 `v` 前缀）；compose 不设回退默认，丢失会在配置校验拦截 |
-| `EXPOSE_PORT` | `8000` | gateway 暴露端口 |
-| `DATA_PATH` | `./data` | 数据目录（相对运行目录或绝对路径） |
-| `DOCKER_SOCKET_PATH` | 自动探测 | rootless / OrbStack 与默认不同，install 自动写入 |
-| `PUBLIC_HOST` | 空 | 对外域名（影响 next/auth 的链接生成；空 = 不启用） |
-| `SERVER_REPLICAS` 等 | `2/2/2/2/1` | server/auth/house/next/cloud 副本数，改后 `up -d` 生效 |
-
-修改后 `docker compose up -d` 生效；外接变量语义见 `.env.example` 注释。
-
-## 日常运维
-
-```bash
-./check.sh ./swanlab    # 只读巡检：环境/目录/配置校验/渲染/项目一致性/vector 实例/容器健康/磁盘
-```
-
-- 输出 `[PASS]/[WARN]/[FAIL]` 汇总，退出码 `0`=无 FAIL、`1`=有 FAIL、`2`=目录不存在——可接入 CI / 监控。
-- 日志与容器：`docker compose ps`、`docker compose logs -f <service>`。
-- 扩缩容：编辑 `.env` 业务副本数后 `up -d`，网关自动发现副本。Vector 默认双实例（`vector-1` / `vector-2`）；新增实例在 `docker-compose.override.yaml` 中按 `vector-N` 定义并独占缓冲目录，升级会自动纳入启动与排空检查。
-
-## 升级与回滚
-
-```bash
-./upgrade.sh ./swanlab --check    # 只读体检：版本/磁盘/校验/渲染/容器状态
-./upgrade.sh ./swanlab --ingestion-paused
-./upgrade.sh ./swanlab --version 3.6.0 --ingestion-paused
-./upgrade.sh ./swanlab -o --ingestion-paused         # 离线
-./upgrade.sh ./swanlab --rollback ./swanlab/backups/pre-upgrade-<ts>/ --ingestion-paused
-```
-
-- 数据库 schema 由一次性服务 `server-migrate`（`prisma migrate deploy` + `node migrate.js`）在 server 副本启动前串行执行；迁移失败则中断启动过程。
-- 每次升级前自动 `pg_dump` 快照到 `backups/pre-upgrade-<ts>/`；`--rollback` 恢复配置（数据库快照按需手动导入，命令见其输出）。
-- 升级或回滚前必须在维护窗口暂停外部指标上报，并确认已接收的请求都处理完，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
-- 升级按当前配置暂停 House、停止正在运行的 Vector 容器，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。各实例使用各自的 `vector-N/` 缓冲目录，升级不改变挂载目录；已停止的容器保留，升级不会自动删除已不在配置中的容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
-- 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部缓冲数据，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
-
-## 存量迁移（旧版 docker → docker-v2）
-
-适用于旧版 `docker/`（fluent-bit）部署。迁移仅支持数据层四个服务都在本机运行的形态；外接在迁移完成后通过 `configure.sh` 切换。
-
-参数是旧版运行目录，即旧 `install.sh` 生成的 `swanlab/`（包含 `.env`、`docker-compose.yaml`、`fluent-bit.conf`、`data/`），不是本仓库的 `docker/` 模板目录。旧版部署需完整运行（数据层四个服务 + 数据上报服务）。
-
-```bash
-./migrate.sh /opt/swanlab                       # 旧运行目录在 /opt/swanlab
-./migrate.sh ../docker/swanlab                  # 旧版在 self-hosted/docker/ 下安装
-./migrate.sh /opt/swanlab --to /data2/swanlab   # 写入完成后 rsync 数据到新目录，旧目录原样保留
-./migrate.sh /opt/swanlab -o -y                 # 离线 + 免确认
-```
-
-数据完整性：
-
-- PostgreSQL / Redis / ClickHouse / MinIO 数据目录原地保留，凭据沿用旧值；
-- 数据库结构由 `server-migrate` 一次性服务在 server 副本启动前串行升级；
-- 配置快照仅备份文本（compose / `.env` / metadata）：迁移不修改数据卷，支持回滚；
-- 写入完成判定：停止数据上报后轮询 ClickHouse 行数稳定；
-- 回滚：恢复旧 compose/`.env` 后 `up -d` 完成回退（收尾输出提供对应命令）；
-- 确认不再需要回滚后，可清理旧卷：`docker volume rm swanlab-house fluent-bit`。
-
-## 运行目录结构（docker-v2）
-
-旧版 `docker/` 的运行目录同样是 `swanlab/`，但结构不同（含 `fluent-bit.conf`）；迁移时传入该目录，原地迁移后变为下结构。
+**运行目录结构（`swanlab/`）：**
 
 ```text
 swanlab/
-├── .env                  # 全部配置（权限 600）
-├── docker-compose.yaml   # 自本模板拷贝；升级时覆盖，勿直接改
-├── docker-compose.override.yaml  # 可选：自定义服务/镜像等持久化覆盖
-├── config/               # traefik（静态+动态）/ vector 配置
-├── backups/              # pre-migrate-<ts>/ 与 pre-upgrade-<ts>/、pre-configure-<ts>/ 快照
-└── data/                 # postgres/ redis/ clickhouse/ minio/ vector-1/ vector-2/（新增实例为 vector-N/）
+├── .env                          # 环境配置与密钥（权限 600）
+├── docker-compose.yaml           # 主编排文件（升级自动覆盖，请勿直接修改）
+├── docker-compose.override.yaml  # [可选] 自定义覆盖配置（升级与回滚自动保留）
+├── config/                       # Traefik 与 Vector 配置
+├── backups/                      # 升级、迁移与配置变更快照
+└── data/                         # postgres / redis / clickhouse / minio / vector-1 / vector-2
 ```
 
-## 旧 Docker Compose（< v2.24）环境
+---
 
-本方案不提供旧 compose 兼容路径，请升级 compose 插件（如 `apt install docker-compose-plugin`，或从 GitHub 下载对应版本二进制）。
+## 3. 离线环境部署
 
-原因：`depends_on` 的 `required` 语法参与 compose 解析与校验，旧版本无法解析此语法。
+1. **在联网环境下拉取并打包镜像**：
 
-## FAQ
+```bash
+cd self-hosted/scripts
+./pull-images.sh --v2 --save   # 生成 swanlab_images.tar
+```
 
-- **OrbStack / rootless Docker 提示 socket 不存在？** `install.sh` 会自动探测并写入 `DOCKER_SOCKET_PATH`（如 `~/.orbstack/run/docker.sock`）；修改环境后 `check.sh` 会校验。
-- **磁盘 90GiB 建议的依据？** 每个 Vector 实例四个 sink 共 40GiB 缓冲，默认两实例 80GiB，另预留至少 10GiB 运行空间；新增实例按 40GiB/个累加，数据库体积需额外考虑。脚本低于建议值时提示，巡检低于 10GiB 时失败。
-- **双副本内存吃紧？** `.env` 各 `*_REPLICAS` 降为 1，`up -d` 生效。
-- **`configure.sh` 能直接用于旧版吗？** 不能，旧版先 `migrate.sh`；`configure.sh` 只切 docker-v2 的数据层连接，确认生效时只重建受影响的服务。
-- **新增 `vector-3` 后如何升级？** 将 `vector-3` 定义写入 `docker-compose.override.yaml`（见上文示例）；`upgrade.sh` 会按合并后的配置启动并排空所有 `vector-N`。直接改在 `docker-compose.yaml` 中的实例会在升级前被检测到并中止，避免模板覆盖后实例停摆、缓冲目录不参与排空。
-- **如何切换镜像源 / 命名空间？** 在运行目录的 `docker-compose.override.yaml` 中覆盖对应服务的 `image`，避免升级时被模板覆盖；离线打包机同步修改 `scripts/pull-images.sh` 清单（可先 `./pull-images.sh --v2 --list` 核对）。
+2. **传输到目标机器**：上传 `self-hosted` 仓库与 `swanlab_images.tar` 到目标机器
+3. **加载镜像并安装**： 确保目标机器已安装 Docker，并加载离线镜像:
+
+```bash
+docker load -i swanlab_images.tar
+cd self-hosted/docker-v2
+./install.sh
+```
+
+---
+
+## 4. 环境变量配置
+
+### 4.1 常用环境变量
+
+一般位于运行目录下的 `.env` 文件中，修改后在运行目录下执行 `docker compose up -d` 生效：
+
+| 变量名               | 默认值   | 说明                                                            |
+| :------------------- | :------- | :-------------------------------------------------------------- |
+| `SWANLAB_VERSION`    | `3.6.0`  | 业务镜像版本号                                                  |
+| `EXPOSE_PORT`        | `8000`   | 网关暴露端口                                                    |
+| `DATA_PATH`          | `./data` | 数据目录路径                                                    |
+| `PUBLIC_HOST`        | 空       | 对外访问域名（如 `https://swanlab.example.com`）                |
+| `SERVER_REPLICAS` 等 | <number> | SwanLab 业务服务副本数                                          |
+| `DOCKER_SOCKET_PATH` | 自动探测 | Docker Socket 路径（自动适配标准 Docker / Rootless / OrbStack） |
+
+### 4.2 外接数据库服务（PostgreSQL / Redis / ClickHouse / S3）
+
+SwanLab 依赖的基础设施服务支持本机容器或外接实例的任意组合：
+
+- **安装时配置**：运行 `./install.sh` 按交互提示逐项配置。
+- **安装后切换**：: 在 `.env` 环境变量中没治好
+
+```bash
+./configure.sh ./swanlab --status   # 查看当前部署形态
+./configure.sh ./swanlab            # 交互式切换（自动备份 .env 并按需重建受影响容器）
+```
+
+> 📌 **注意**：`configure.sh` 仅切换连接配置，**不自动迁移数据**。切往外接前请预先准备外部库表与 S3 存储桶
+
+---
+
+## 5. 日常运维与扩缩容
+
+- **状态巡检**：`./check.sh ./swanlab`（退出码 `0`=正常，`1`=有故障，`2`=目录不存在）
+- **查看日志**：`cd ./swanlab && docker compose logs -f <service>`
+- **业务副本扩缩容**：修改 `.env` 中的 `*_REPLICAS` 后执行 `docker compose up -d`
+
+---
+
+## 6. 升级与回滚
+
+升级会短暂中断服务，请在维护窗口执行，并提前通知使用中的用户。
+
+```bash
+# 1. 升级前只读体检
+./upgrade.sh ./swanlab --check
+
+# 2. 执行升级（快照配置、排空 Vector 缓冲、执行数据库迁移）
+./upgrade.sh ./swanlab
+./upgrade.sh ./swanlab -o              # 离线模式
+./upgrade.sh ./swanlab --version 3.6.0 # 指定目标版本
+
+# 3. 异常回滚（恢复配置与镜像版本，不改动数据库）
+./upgrade.sh ./swanlab --rollback ./swanlab/backups/pre-upgrade-<时间戳>/
+```
+
+> 回滚只恢复配置与镜像版本，不改动数据库。数据库结构保持前向兼容，回滚后的旧版本仍可正常运行。
+
+---
+
+## 7. 旧版 Docker 部署实例迁移
+
+将旧版 `docker/`（`fluent-bit` 架构）平滑迁移至 `docker-v2`。
+
+- **前提**：旧版容器实例运行状态健康；如需外接，请**先执行 `migrate.sh` 原地迁移，再执行 `configure.sh` 切换外接数据库配置**。
+- **参数**：传入旧版实例安装生成的**运行目录**（一般是 `swanlab`，目录下包含 `.env`、`fluent-bit.conf`、`data/`），而非仓库中的 `docker/` 模板目录。
+
+```bash
+./migrate.sh <path_to_swanlab>                            # 原地迁移（数据库相关文件原地保留）
+./migrate.sh <path_to_swanlab>  --to <new_swanlab_path>   # 跨目录迁移（自动拷贝数据，旧目录保留）
+```
+
+确认稳定运行后，可清理旧版遗留数据卷：
+
+```bash
+docker volume rm swanlab-house fluent-bit
+```

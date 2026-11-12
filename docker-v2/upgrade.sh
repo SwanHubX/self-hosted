@@ -2,15 +2,14 @@
 # SwanLab Self-Hosted（docker-v2 架构）升级脚本
 #
 # 用法: ./upgrade.sh [运行目录(默认 ./swanlab)] [选项]
-#   (默认)              快照（本机 PG 自动 pg_dump）→ 铺设模板 → 拉取镜像 → 启动 → 健康检查
+#   (默认)              配置快照 → 铺设模板 → 拉取镜像 → 启动 → 健康检查
 #   --check             只读体检：版本对比 / 磁盘 / 配置校验 / 渲染 / 容器状态，不做任何变更
 #   --version X.Y.Z     覆盖目标版本（默认取模板 .env.example 的 SWANLAB_VERSION）
 #   --offline | -o      离线/内网：跳过 docker compose pull，仅校验所需镜像已在本地
-#   --rollback <dir>    从 backups/pre-upgrade-<ts>/ 回滚 compose / .env / config
-#                       （数据库快照按需手动导入，脚本会给出命令）
+#   --rollback <dir>    从 backups/pre-upgrade-<ts>/ 回滚 compose / .env / config（不改动数据库）
 #   --yes | -y          跳过交互确认
-#   --ingestion-paused   声明已暂停外部上报并确认在途请求已处理完，升级与回滚必须提供
 #
+# 升级会短暂中断服务，请在维护窗口执行，并提前通知使用中的用户。
 # 数据库迁移由一次性服务 server-migrate 在 server 副本启动前执行。
 # 自定义服务/镜像请写入运行目录的 docker-compose.override.yaml；升级只覆盖模板文件。
 #
@@ -27,7 +26,6 @@ ROLLBACK_DIR=""
 TARGET_VERSION=""
 ASSUME_YES=0
 OFFLINE=0
-INGESTION_PAUSED=0
 
 POSITIONAL=()
 while [ $# -gt 0 ]; do
@@ -37,7 +35,6 @@ while [ $# -gt 0 ]; do
     --version) [ -n "${2:-}" ] || die "--version 需要版本号"; TARGET_VERSION="$2"; shift 2 ;;
     --offline|-o) OFFLINE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
-    --ingestion-paused) INGESTION_PAUSED=1; shift ;;
     -*) die "未知选项: $1" ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
@@ -49,11 +46,6 @@ echo "${bold}===== SwanLab Self-Hosted（docker-v2）升级 =====${reset}"
 require_compose_v224
 [ "$CHECK_ONLY" -eq 0 ] || [ -z "$ROLLBACK_DIR" ] || die "--check 与 --rollback 不能同时使用"
 [ -d "$TARGET_DIR" ] && TARGET_DIR=$(cd "$TARGET_DIR" && pwd -P)
-
-if [ "$CHECK_ONLY" -eq 0 ] || [ -n "$ROLLBACK_DIR" ]; then
-  [ "$INGESTION_PAUSED" -eq 1 ] \
-    || die "请先暂停外部指标上报并确认在途请求已处理完，再加 --ingestion-paused；--yes 不能替代维护窗口要求"
-fi
 
 # ---------------- --rollback 分支 ----------------
 if [ -n "$ROLLBACK_DIR" ]; then
@@ -107,12 +99,7 @@ if [ -n "$ROLLBACK_DIR" ]; then
   (cd "${TARGET_DIR}" && docker compose up -d) || die "回滚 up -d 失败（当前状态已备份于 ${PRE_ROLLBACK}）"
   wait_services_healthy "${TARGET_DIR}" || exit 1
 
-  # 数据库快照提示（破坏性操作只提示不自动执行）
-  if [ -f "${ROLLBACK_DIR}/pg_snapshot.sql.gz" ]; then
-    log_warn "如需同时回滚数据库结构（破坏性，会覆盖升级后的数据）："
-    echo "  gunzip -c ${ROLLBACK_DIR}/pg_snapshot.sql.gz | (cd ${TARGET_DIR} && docker compose exec -T postgres psql -U swanlab -d app)"
-  fi
-  log_ok "回滚完成（回滚前状态备份于 ${PRE_ROLLBACK}）"
+  log_ok "回滚完成（仅恢复配置与镜像版本，数据库未改动；回滚前状态备份于 ${PRE_ROLLBACK}）"
   exit 0
 fi
 
@@ -220,30 +207,12 @@ cp -r "${TARGET_DIR}/config" "$BACKUP_DIR/" \
 } > "$BACKUP_DIR/metadata.txt"
 log_ok "已快照当前部署到 ${BACKUP_DIR}"
 
-# ---------------- 2. 数据库快照 ----------------
-PROFILES=$(env_get COMPOSE_PROFILES "${TARGET_DIR}/.env")
-case ",$PROFILES," in
-  *,postgres,*)
-    log_info "检测到本机 postgres，自动 pg_dump 数据库快照..."
-    (cd "${TARGET_DIR}" && docker compose exec -T postgres pg_dump -U swanlab -d app | gzip > "${BACKUP_DIR}/pg_snapshot.sql.gz") \
-      || die "pg_dump 失败——为安全起见升级中止（可 --check 排查，或手动备份后重试）"
-    log_ok "数据库快照: ${BACKUP_DIR}/pg_snapshot.sql.gz"
-    ;;
-  *)
-    log_warn "PostgreSQL 为外接部署，请确认已有数据库快照"
-    if [ "$ASSUME_YES" -eq 0 ]; then
-      read -p "   确认已有快照并继续? (y/N): " CONFIRM_SNAPSHOT
-      [[ "$CONFIRM_SNAPSHOT" =~ ^[Yy]$ ]] || { echo "已取消"; exit 1; }
-    fi
-    ;;
-esac
-
 # 先停止当前 Vector，避免更换配置期间继续写入缓冲目录。
 log_info "暂停 House 并停止当前 Vector；数据目录和已停止的容器均保留..."
 pause_house "$TARGET_DIR" || die "暂停 House 失败，升级中止"
 stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，升级中止，尚未替换配置"
 
-# ---------------- 3. 铺设新模板与更新版本号 ----------------
+# ---------------- 2. 铺设新模板与更新版本号 ----------------
 cp -f "${SCRIPT_DIR}/docker-compose.yaml" "${TARGET_DIR}/"
 rm -rf "${TARGET_DIR}/config"
 cp -r "${SCRIPT_DIR}/config" "${TARGET_DIR}/config"
@@ -258,7 +227,7 @@ while IFS='=' read -r key _; do
 done < "${SCRIPT_DIR}/.env.example"
 [ -n "$MISSING_KEYS" ] && log_warn "模板新增变量（未写入 .env，使用默认值）:${MISSING_KEYS}；可对照 ${SCRIPT_DIR}/.env.example 手动补充"
 
-# ---------------- 4. 校验与拉取镜像 ----------------
+# ---------------- 3. 校验与拉取镜像 ----------------
 validate_env "${TARGET_DIR}/.env" || die "升级后的 .env 校验失败（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}）"
 render_check "${TARGET_DIR}"
 
@@ -266,7 +235,7 @@ render_check "${TARGET_DIR}"
 pull_images "${TARGET_DIR}" "${OFFLINE}" \
   || die "镜像不可用（回滚: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}；离线环境请先 scripts/pull-images.sh --v2 --save 打包，在目标机 docker load 后加 --offline 重试）"
 
-# ---------------- 5. 重建服务 ----------------
+# ---------------- 4. 重建服务 ----------------
 # 先确认已有缓冲数据写入完成，再让 House 发送新事件。
 VECTOR_SERVICES=$(vector_services "$TARGET_DIR") \
   || die "无法解析新配置中的 Vector 服务，House 保持暂停；配置快照与缓冲数据均已保留"
@@ -292,7 +261,6 @@ wait_services_healthy "${TARGET_DIR}" || {
 log_info "设置存量 ClickHouse 系统日志 TTL（7 天）..."
 apply_system_log_ttl "${TARGET_DIR}"
 
-# ---------------- 6. 收尾 ----------------
+# ---------------- 5. 收尾 ----------------
 log_ok "升级完成: ${CURRENT_VERSION:-?} → ${TARGET_VERSION}"
 echo "💡 配置回滚入口: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}"
-echo "   （若需回滚数据库结构，该备份内的 pg_snapshot.sql.gz 导入命令见 --rollback 输出）"
