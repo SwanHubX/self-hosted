@@ -449,6 +449,59 @@ wait_vector_buffers_drained() {
   return 1
 }
 
+# 在本机 ClickHouse 执行 SQL（外接实例不操作）
+clickhouse_exec() {
+  local run_dir="$1" sql="$2" user pass
+  user=$(env_get CLICKHOUSE_USER "$run_dir/.env")
+  pass=$(env_get CLICKHOUSE_PASSWORD "$run_dir/.env")
+  (cd "$run_dir" && docker compose exec -T clickhouse \
+    clickhouse-client --user "$user" --password "$pass" --query "$sql")
+}
+
+# 存量系统日志表统一 7 天 TTL。日志已停止写入，TTL 由后台合并按分区回收，
+# ttl_only_drop_parts 避免对超大历史分区做重写。
+apply_system_log_ttl() {
+  local run_dir="$1" profiles tables table ttl_col total=0 failed=0
+  profiles=$(env_get COMPOSE_PROFILES "$run_dir/.env")
+  case ",${profiles}," in
+    *,clickhouse,*) ;;
+    *)
+      log_warn "ClickHouse 为外接部署，跳过系统日志 TTL 设置；如有需要请在外部实例手动设置 7 天 TTL"
+      return 0
+      ;;
+  esac
+
+  tables=$(clickhouse_exec "$run_dir" \
+    "SELECT name FROM system.tables WHERE database='system' AND endsWith(name, '_log') FORMAT TSV" 2>/dev/null) || {
+    log_warn "无法读取 ClickHouse 系统表，跳过系统日志 TTL 设置"
+    return 0
+  }
+  [ -n "$tables" ] || { log_ok "无存量系统日志表，跳过 TTL 设置"; return 0; }
+
+  while IFS= read -r table; do
+    [ -n "$table" ] || continue
+    case "$table" in
+      opentelemetry_span_log) ttl_col=finish_date ;;
+      *) ttl_col=event_date ;;
+    esac
+    total=$((total + 1))
+    if clickhouse_exec "$run_dir" \
+      "ALTER TABLE system.${table} MODIFY TTL ${ttl_col} + INTERVAL 7 DAY" >/dev/null 2>&1; then
+      clickhouse_exec "$run_dir" \
+        "ALTER TABLE system.${table} MODIFY SETTING ttl_only_drop_parts = 1" >/dev/null 2>&1 || true
+    else
+      failed=$((failed + 1))
+      log_warn "系统日志表 ${table} 设置 TTL 失败，请手动检查"
+    fi
+  done <<< "$tables"
+
+  if [ "$failed" -eq 0 ]; then
+    log_ok "存量系统日志表已设置 7 天 TTL（${total} 张，按分区回收）"
+  else
+    log_warn "系统日志 TTL 设置完成 ${total} 张，其中 ${failed} 张失败，请手动检查"
+  fi
+}
+
 # 检查 compose 配置渲染
 render_check() {
   local run_dir="$1"

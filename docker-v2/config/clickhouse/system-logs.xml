@@ -1,0 +1,24 @@
+<clickhouse>
+    <!-- 关闭系统日志表：这些表只记录 ClickHouse 自身诊断信息，SwanLab 运行不依赖，
+         默认配置没有 TTL，长期运行会持续占用磁盘（query_log、processors_profile_log、
+         trace_log、metric_log 等是常见的大头）。
+         存量部署的历史数据由 upgrade.sh / migrate.sh 统一设置为 7 天 TTL，由后台按分区回收。 -->
+    <query_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <query_views_log remove="1"/>
+    <trace_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <part_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <opentelemetry_span_log remove="1"/>
+    <asynchronous_insert_log remove="1"/>
+    <blob_storage_log remove="1"/>
+    <backup_log remove="1"/>
+    <s3queue_log remove="1"/>
+
+    <!-- 崩溃日志只在 ClickHouse 进程崩溃时写入，量极小，保留用于排查；统一 7 天 TTL。 -->
+    <crash_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </crash_log>
+</clickhouse>

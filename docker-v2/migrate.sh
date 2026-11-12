@@ -340,6 +340,10 @@ log_info "启动 docker-v2（docker compose up -d，schema 迁移由 server-migr
 (cd "$DEST_DIR" && docker compose up -d) || { log_err "up -d 失败"; rollback_hint; exit 1; }
 wait_services_healthy "$DEST_DIR" || { log_err "服务未恢复健康"; rollback_hint; exit 1; }
 
+# 系统日志表已停止写入；存量数据设置 7 天 TTL，由后台按分区回收
+log_info "设置存量 ClickHouse 系统日志 TTL（7 天）..."
+apply_system_log_ttl "$DEST_DIR"
+
 # ---------------- 15. 输出迁移结果 ----------------
 echo
 echo "${green}${bold}迁移完成: 旧版(docker + fluent-bit) v${LEGACY_VERSION:-unknown} → docker-v2 v${TARGET_VERSION}${reset}"

@@ -88,6 +88,8 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 ./configure.sh ./swanlab --status  # 只读查看当前形态
 ```
 
+**ClickHouse 系统日志**：本机 ClickHouse 默认关闭 `system` 下的 `*_log` 表（仅保留 crash_log，7 天 TTL），避免日志无限增长占满磁盘。升级/迁移会把存量 `system.*_log` 表统一设置为 7 天 TTL，后台按分区回收；外接 ClickHouse 需自行在实例侧处理。
+
 切换只改连接指向，不迁移数据（外接→本机 = 空库/空桶起步，本机→外接需预先准备实例与桶）。
 
 配置写入后会询问是否执行 `docker compose up -d` 生效；确认后按配置差异重建受影响的服务（不是全量重启），未变更的容器保持运行。

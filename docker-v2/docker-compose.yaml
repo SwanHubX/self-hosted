@@ -156,6 +156,8 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     volumes:
       - ${DATA_PATH:-./data}/clickhouse:/var/lib/clickhouse/
+      # 关闭系统日志表，避免无限增长占满磁盘；存量数据由 upgrade/migrate 设置 7 天 TTL
+      - ./config/clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
       interval: 10s

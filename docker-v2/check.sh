@@ -51,7 +51,7 @@ fi
 
 # ---------------- 2. 运行目录完整性 ----------------
 echo "${bold}----- 2. 运行目录 -----${reset}"
-for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml" "config/vector/render.sh"; do
+for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml" "config/vector/render.sh" "config/clickhouse/system-logs.xml"; do
   if [ -e "${TARGET_DIR}/${f}" ]; then
     pass_ "${f} 存在"
   else

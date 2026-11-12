@@ -290,6 +290,10 @@ wait_services_healthy "${TARGET_DIR}" || {
   exit 1
 }
 
+# 系统日志表已停止写入；存量数据设置 7 天 TTL，由后台按分区回收
+log_info "设置存量 ClickHouse 系统日志 TTL（7 天）..."
+apply_system_log_ttl "${TARGET_DIR}"
+
 # ---------------- 6. 收尾 ----------------
 log_ok "升级完成: ${CURRENT_VERSION:-?} → ${TARGET_VERSION}"
 echo "💡 配置回滚入口: ./upgrade.sh ${TARGET_DIR} --rollback ${BACKUP_DIR}"
