@@ -14,7 +14,7 @@ Docker Compose 版私有化部署方案（v3.6.0）。
                  clickhouse / minio              │  内部负载均衡 + /ping 探活
                  （独立 profile，可外接）         ▼
                                         vector-1          vector-2
-                                        data/vector/      data/vector-2/
+                                        data/vector-1/    data/vector-2/
                                                │ 独立 disk buffer
                                                ▼
                                               clickhouse
@@ -44,7 +44,7 @@ cd docker-v2
 
 > ⚠️ **本目录是模板目录，不可执行 `docker compose up -d`**：`.env.example` 的凭据字段为空，请通过 `install.sh` / `migrate.sh` 生成运行目录（默认 `swanlab/`）后操作。
 
-> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的缓冲目录，共享目录会产生排他锁冲突。默认 `vector-1` 使用 `DATA_PATH/vector`，`vector-2` 使用 `DATA_PATH/vector-2`；新增实例按 `vector-N` 命名并挂载独立目录。旧 `vector/` 目录继续有效，请勿清空。
+> ⚠️ **禁止对 Vector 服务使用 `--scale`**：每个进程独占自己的缓冲目录，共享目录会产生排他锁冲突。`vector-N` 固定挂载 `DATA_PATH/vector-N`，新增实例按 `vector-N` 命名并挂载独立目录。
 
 > 📌 **自定义 Compose 请使用 `docker-compose.override.yaml`**：运行目录的 `docker-compose.yaml` 由模板维护，`upgrade.sh` 会用新模板覆盖它；新增 `vector-N`、调整镜像地址等需要保留的改动写入同目录的 `docker-compose.override.yaml`，Compose 会自动合并，升级会保留，并纳入升级快照与回滚。新增 `vector-3` 的最小写法（其余字段继承 `vector-2`）：
 >
@@ -132,7 +132,7 @@ SS_STORAGE_TYPE=local|remote                       # S3 本机 MinIO / 外部对
 - 数据库 schema 由一次性服务 `server-migrate`（`prisma migrate deploy` + `node migrate.js`）在 server 副本启动前串行执行；迁移失败则中断启动过程。
 - 每次升级前自动 `pg_dump` 快照到 `backups/pre-upgrade-<ts>/`；`--rollback` 恢复配置（数据库快照按需手动导入，命令见其输出）。
 - 升级或回滚前必须在维护窗口暂停外部指标上报，并确认已接收的请求都处理完，再提供 `--ingestion-paused`。`--yes` 只跳过交互确认，不能替代暂停声明。只读 `--check` 无需声明。
-- 升级按当前配置暂停 House、停止旧 Vector 容器，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认旧缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。`vector-1` 原地继承 `vector/`，不改动缓冲目录；已停止的旧容器保留，升级不会自动删除已不在配置中的容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
+- 升级按当前配置暂停 House、停止正在运行的 Vector 容器，再更换模板。先启动网关与全部 Vector 实例（含 override 中的 `vector-N`），等待健康并连续两次确认缓冲已排空，再恢复业务服务；检查失败则保持 House 暂停。各实例使用各自的 `vector-N/` 缓冲目录，升级不改变挂载目录；已停止的容器保留，升级不会自动删除已不在配置中的容器或数据。升级只覆盖模板文件 `docker-compose.yaml` 与 `config/`，不改动 `docker-compose.override.yaml`；快照与回滚会一并处理该文件。若现有 `vector-N` 只定义在 `docker-compose.yaml` 中，升级前会检测到并中止，提示迁移到 override。
 - 回滚先检查当前所有实例的 HTTP 服务、ClickHouse 可达性和缓冲用量。每隔 35 秒采样，连续两次零积压后才停止 Vector 并恢复配置；默认最多等待约 180 秒。实例不可用、指标无法判断或积压不消退时中止，保留当前配置与全部缓冲数据，House 保持暂停。恢复下游后重试；需要恢复原部署时按当前配置启动 House。
 
 ## 存量迁移（旧版 docker → docker-v2）
@@ -168,7 +168,7 @@ swanlab/
 ├── docker-compose.override.yaml  # 可选：自定义服务/镜像等持久化覆盖
 ├── config/               # traefik（静态+动态）/ vector 配置
 ├── backups/              # pre-migrate-<ts>/ 与 pre-upgrade-<ts>/、pre-configure-<ts>/ 快照
-└── data/                 # postgres/ redis/ clickhouse/ minio/ vector/ vector-2/（新增实例为 vector-N/）
+└── data/                 # postgres/ redis/ clickhouse/ minio/ vector-1/ vector-2/（新增实例为 vector-N/）
 ```
 
 ## 旧 Docker Compose（< v2.24）环境

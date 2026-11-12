@@ -7,8 +7,8 @@ on:
       - "docker/install.sh"
       - "docker/install-dockerhub.sh"
       - "docker/upgrade.sh"
-      - "scripts/run-install-smoke.sh"
-      - "scripts/test-migrate-registry.sh"
+      - "tests/install-smoke.sh"
+      - "tests/migrate-registry.sh"
       - ".github/workflows/install-smoke.yml"
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
 
       - name: Run migrate_registry unit tests
         run: |
-          chmod +x scripts/*.sh
-          scripts/test-migrate-registry.sh
+          chmod +x tests/*.sh
+          tests/migrate-registry.sh
 
   ubuntu-rootful:
     runs-on: ubuntu-latest
@@ -37,8 +37,8 @@ jobs:
 
       - name: Run install.sh on Ubuntu rootful Docker
         run: |
-          chmod +x docker/*.sh scripts/*.sh
-          scripts/run-install-smoke.sh
+          chmod +x docker/*.sh tests/*.sh
+          tests/install-smoke.sh
 
       - name: Dump Docker logs on failure
         if: failure()
@@ -77,9 +77,9 @@ jobs:
 
       - name: Run install.sh in WSL2 rootful Docker
         run: |
-          sed -i 's/\r$//' docker/*.sh scripts/*.sh
-          chmod +x docker/*.sh scripts/*.sh
-          scripts/run-install-smoke.sh
+          sed -i 's/\r$//' docker/*.sh tests/*.sh
+          chmod +x docker/*.sh tests/*.sh
+          tests/install-smoke.sh
 
       - name: Dump Docker logs on failure
         if: failure()
@@ -113,8 +113,8 @@ jobs:
 
       - name: Run install.sh on Ubuntu rootless Docker
         run: |
-          chmod +x docker/*.sh scripts/*.sh
-          scripts/run-install-smoke.sh
+          chmod +x docker/*.sh tests/*.sh
+          tests/install-smoke.sh
 
       - name: Dump Docker logs on failure
         if: failure()

@@ -10,8 +10,8 @@
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib.sh
-source "${SCRIPT_DIR}/lib.sh"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 TARGET_DIR="swanlab"
 [ $# -gt 0 ] && TARGET_DIR="$1"
@@ -51,7 +51,10 @@ fi
 
 # ---------------- 2. 运行目录完整性 ----------------
 echo "${bold}----- 2. 运行目录 -----${reset}"
-for f in ".env" "docker-compose.yaml" "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" "config/vector/vector.yaml" "config/vector/render.sh" "config/clickhouse/system-logs.xml"; do
+for f in ".env" "docker-compose.yaml" \
+  "config/traefik/traefik.yaml" "config/traefik/dynamic/middlewares.yaml" \
+  "config/vector/vector.yaml" "config/vector/render.sh" \
+  "config/clickhouse/system-logs.xml"; do
   if [ -e "${TARGET_DIR}/${f}" ]; then
     pass_ "${f} 存在"
   else
@@ -111,8 +114,6 @@ echo "${bold}----- 6. vector 实例 -----${reset}"
 vector_service_list=$(vector_services "$TARGET_DIR") || vector_service_list=""
 if [ -z "$vector_service_list" ]; then
   fail_ "配置中未找到 Vector 服务（应为 vector-1 / vector-2 或 vector-N）"
-elif printf '%s\n' "$vector_service_list" | grep -qx 'vector'; then
-  fail_ "运行目录仍是单实例 vector 配置，请按升级流程切换到 vector-1 / vector-2"
 else
   vector_service_n=$(printf '%s\n' "$vector_service_list" | awk 'NF {n++} END {print n+0}')
   if [ "$vector_service_n" -lt 2 ]; then
@@ -152,15 +153,6 @@ else
     pass_ "各 Vector 实例的数据目录互相独立"
   fi
 fi
-vector_project=$(compose_project_name "$TARGET_DIR")
-legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=${vector_project}" --filter 'label=com.docker.compose.service=vector')
-for legacy_id in $legacy_ids; do
-  if [ "$(docker inspect --format '{{.State.Running}}' "$legacy_id")" = "true" ]; then
-    fail_ "旧 vector 容器仍在运行，可能占用实例 1 的缓冲目录；请按升级流程停止旧容器"
-  else
-    warn_ "旧 vector 容器已停止并保留；vector/ 是实例 1 的有效数据目录，请勿清空"
-  fi
-done
 
 # ---------------- 7. 容器健康 ----------------
 echo "${bold}----- 7. 容器状态 -----${reset}"

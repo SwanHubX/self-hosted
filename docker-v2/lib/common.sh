@@ -1,10 +1,10 @@
 #!/bin/bash
-# lib.sh — docker-v2 脚本共用函数库
-# 由 install.sh / upgrade.sh（以及后续 configure.sh / check.sh / migrate.sh）source，不单独执行
-# 兼容 bash 3.2（macOS 系统自带），不使用 mapfile / 关联数组等 bash4 特性
+# common.sh — docker-v2 脚本共用函数库
+# 由 install.sh / upgrade.sh / migrate.sh / configure.sh / check.sh source，不单独执行
+# 兼容 macOS / Linux / Windows（Git Bash、WSL），不使用 Bash 4 特性
 
 # ---------------- 输出 ----------------
-if [ -t 1 ] && command -v tput >/dev/null 2>&1 && [ "$(tput colors 2>/dev/null)" -ge 8 ]; then
+if [ -t 1 ] && command -v tput >/dev/null 2>&1 && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ] 2>/dev/null; then
   red=$(tput setaf 1)
   green=$(tput setaf 2)
   yellow=$(tput setaf 3)
@@ -22,7 +22,7 @@ die()      { log_err "$@"; exit 1; }
 
 # ---------------- 环境检查 ----------------
 
-# 每个实例四个 10GiB disk buffer；默认两实例共 80GiB，另留运行余量，实例增加时需上调。
+# 每个实例 4 个 10GiB disk buffer（共 40GiB）；默认两实例 80GiB，另留运行余量，新增实例按 40GiB/个累加。
 VECTOR_DISK_RECOMMENDED_GIB=90
 VECTOR_DISK_MIN_FREE_GIB=10
 
@@ -105,8 +105,7 @@ random_password() {
   openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | cut -c1-10
 }
 
-# 检查属于指定 compose 项目但工作目录不同的容器
-# 使用 pwd -P 解析物理路径进行比对，避免软链接差异
+# 检查属于同一 compose 项目、但工作目录不同的容器（软链接按物理路径比较）
 foreign_project_container() {
   local run_dir="$1" project="${2:-swanlab}" run_dir_abs parent ids id wd wd_abs
   FOREIGN_CONTAINER=""
@@ -313,11 +312,11 @@ compose_override_file() {
   [ -f "$f" ] && printf '%s\n' "$f"
 }
 
-# 识别当前配置中的 Vector 服务：vector-N，兼容单实例配置回滚。
+# 识别当前配置中的 Vector 服务（vector-N）
 vector_services() {
   local services
   services=$(cd "$1" && docker compose config --services) || return 1
-  printf '%s\n' "$services" | awk '/^vector(-[0-9]+)?$/ {print}' | sort
+  printf '%s\n' "$services" | awk '/^vector-[0-9]+$/ {print}' | sort
 }
 
 # 分别检查每个 service，避免总数掩盖实例缺失或误扩容。
@@ -331,7 +330,7 @@ pause_house() {
   (cd "$1" && docker compose stop --timeout 60 swanlab-house) || return 1
 }
 
-# 按当前配置停止 Vector，配置替换后不再依赖旧服务定义。
+# 按当前配置停止 Vector 容器
 stop_vector_services() {
   local run_dir="$1" services service ids id running project
   services=$(vector_services "$run_dir") || return 1
@@ -344,13 +343,13 @@ stop_vector_services() {
       [ "$running" = "false" ] || { log_err "${service} 仍在运行，不能切换缓冲目录的写入进程"; return 1; }
     done
   done
-  # 配置更换失败后重试时，旧 Vector 容器可能已不在当前配置中；按项目标签一并停止。
+  # 一并停止配置中已移除、但仍在运行的 Vector 容器
   project=$(compose_project_name "$run_dir") || return 1
   ids=$(docker ps -q --filter "label=com.docker.compose.project=${project}") || return 1
   for id in $ids; do
     service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id") || return 1
     case "$service" in
-      vector|vector-[0-9]*) ;;
+      vector-[0-9]*) ;;
       *) continue ;;
     esac
     docker stop --time 60 "$id" >/dev/null || return 1
@@ -359,7 +358,7 @@ stop_vector_services() {
   done
 }
 
-# 仅供具有 Bash 的 Vector Debian 镜像使用；不输出配置或凭据。
+# 在 Vector 容器内读取本地 HTTP 指标（Debian 镜像自带 Bash）
 vector_http_get() {
   local run_dir="$1" service="$2" port="$3" path="$4"
   (cd "$run_dir" && docker compose exec -T "$service" timeout 10 bash -ec '
@@ -393,17 +392,13 @@ vector_downstream_ready() {
   ')
 }
 
-# disk buffer 的用量在首次写入前可能不存在；已注册容量且没有接收记录表示空缓冲。
-# 已接收数据时必须同时具备事件与字节用量；缺失或非法样本不能作为排空依据。
-# 兼容 0.51（buffer_events/buffer_byte_size）与 0.58+（buffer_size_events/buffer_size_bytes）指标名。
+# 首次写入前用量指标可能不存在；四个 sink 均确认零积压才算排空，异常样本按未排空处理。
 vector_buffers_empty() {
   awk '
-    /^(vector_)?buffer_(max_byte_size|events|byte_size|received_events_total|size_events|size_bytes)\{/ && /buffer_type="disk"/ {
+    /^(vector_)?buffer_(max_byte_size|size_events|size_bytes|received_events_total)\{/ && /buffer_type="disk"/ {
       id=$0; sub(/^.*component_id="/, "", id); sub(/".*$/, "", id)
       if (id !~ /^clickhouse_(scalar|media|histogram|log)$/) next
       metric=$1; sub(/\{.*$/, "", metric); sub(/^vector_/, "", metric)
-      if (metric == "buffer_size_events") metric = "buffer_events"
-      else if (metric == "buffer_size_bytes") metric = "buffer_byte_size"
       if ($2 !~ /^[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$/) invalid=1
       key=id SUBSEP metric
       if (key in values) invalid=1
@@ -415,8 +410,8 @@ vector_buffers_empty() {
         id=ids[i]
         if (values[id SUBSEP "buffer_max_byte_size"] <= 0) invalid=1
         if (values[id SUBSEP "buffer_received_events_total"] > 0 &&
-            (!(id SUBSEP "buffer_events" in values) || !(id SUBSEP "buffer_byte_size" in values))) invalid=1
-        if (values[id SUBSEP "buffer_events"] != 0 || values[id SUBSEP "buffer_byte_size"] != 0) invalid=1
+            (!(id SUBSEP "buffer_size_events" in values) || !(id SUBSEP "buffer_size_bytes" in values))) invalid=1
+        if (values[id SUBSEP "buffer_size_events"] != 0 || values[id SUBSEP "buffer_size_bytes"] != 0) invalid=1
       }
       exit invalid ? 1 : 0
     }'
@@ -458,8 +453,7 @@ clickhouse_exec() {
     clickhouse-client --user "$user" --password "$pass" --query "$sql")
 }
 
-# 存量系统日志表统一 7 天 TTL。日志已停止写入，TTL 由后台合并按分区回收，
-# ttl_only_drop_parts 避免对超大历史分区做重写。
+# 系统日志表统一 7 天 TTL，按分区异步回收，不重写历史数据。
 apply_system_log_ttl() {
   local run_dir="$1" profiles tables table ttl_col total=0 failed=0
   profiles=$(env_get COMPOSE_PROFILES "$run_dir/.env")
@@ -583,7 +577,7 @@ wait_services_healthy() {
     ids=$( (cd "$run_dir" && docker compose ps -aq "$svc") )
     if [ -z "$ids" ]; then
       case "$svc" in
-        vector|vector-[0-9]*)
+        vector-[0-9]*)
           log_err "Vector 服务 ${svc} 没有容器"
           failed="$failed $svc"
           continue
@@ -599,7 +593,7 @@ wait_services_healthy() {
       run_state=""
       i=0
       while [ "$i" -lt "$timeout" ]; do
-        # 一次 inspect 同时取运行态与健康态（run_state 不含空格，可安全按空格切分）
+        # 一次读取运行状态与健康状态
         info=$(docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null)
         run_state=${info%% *}
         status=${info##* }

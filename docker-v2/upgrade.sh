@@ -2,7 +2,7 @@
 # SwanLab Self-Hosted（docker-v2 架构）升级脚本
 #
 # 用法: ./upgrade.sh [运行目录(默认 ./swanlab)] [选项]
-#   (默认)              快照 → (本机 PG 自动 pg_dump) → 铺设新模板 → 拉镜像 → up -d → 健康等待
+#   (默认)              快照（本机 PG 自动 pg_dump）→ 铺设模板 → 拉取镜像 → 启动 → 健康检查
 #   --check             只读体检：版本对比 / 磁盘 / 配置校验 / 渲染 / 容器状态，不做任何变更
 #   --version X.Y.Z     覆盖目标版本（默认取模板 .env.example 的 SWANLAB_VERSION）
 #   --offline | -o      离线/内网：跳过 docker compose pull，仅校验所需镜像已在本地
@@ -18,8 +18,8 @@
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib.sh
-source "${SCRIPT_DIR}/lib.sh"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 TARGET_DIR="swanlab"
 CHECK_ONLY=0
@@ -156,7 +156,7 @@ if [ -z "$OVERRIDE_FILE" ] && [ -f "${TARGET_DIR}/docker-compose.override.yml" ]
   log_warn "检测到 docker-compose.override.yml；升级快照/回滚只处理 docker-compose.override.yaml，建议重命名"
 fi
 
-# 新模板（含 override）预检：现有 Vector 实例升级后必须仍有定义，避免模板覆盖 compose 后实例丢失
+# 预检新模板：确保现有 Vector 实例在升级后仍有定义
 OLD_VECTOR_SERVICES=$(vector_services "$TARGET_DIR") || die "无法解析当前配置中的 Vector 服务"
 NEW_COMPOSE=(-f "${SCRIPT_DIR}/docker-compose.yaml")
 [ -n "$OVERRIDE_FILE" ] && NEW_COMPOSE+=(-f "$OVERRIDE_FILE")
@@ -166,12 +166,10 @@ NEW_COMPOSE=(-f "${SCRIPT_DIR}/docker-compose.yaml")
 NEW_VECTOR_SERVICES=$( (cd "$TARGET_DIR" && docker compose --project-directory "$TARGET_DIR" \
   --env-file "${TARGET_DIR}/.env" "${NEW_COMPOSE[@]}" config --services) ) \
   || die "无法解析新模板中的服务列表，升级中止"
-NEW_VECTOR_SERVICES=$(printf '%s\n' "$NEW_VECTOR_SERVICES" | awk '/^vector(-[0-9]+)?$/ {print}' | sort)
+NEW_VECTOR_SERVICES=$(printf '%s\n' "$NEW_VECTOR_SERVICES" | awk '/^vector-[0-9]+$/ {print}' | sort)
 [ -n "$NEW_VECTOR_SERVICES" ] || die "新模板中没有 Vector 服务，升级中止"
 LOST_VECTOR=""
 for svc in $OLD_VECTOR_SERVICES; do
-  # 单实例 vector → vector-1 是受支持的升级路径，不算丢失
-  case "$svc" in vector) continue ;; esac
   case " $(printf '%s' "$NEW_VECTOR_SERVICES" | tr '\n' ' ') " in
     *" $svc "*) ;;
     *) LOST_VECTOR="${LOST_VECTOR} ${svc}" ;;
@@ -192,7 +190,7 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
   exit 0
 fi
 
-# 正式升级需要 daemon；--check 只读路径已在上方退出（校验/渲染均不依赖 daemon）
+# 正式升级需要 Docker daemon（--check 已在上方退出）
 require_docker
 
 # ---------------- 确认 ----------------
@@ -204,7 +202,7 @@ fi
 # ---------------- 1. 快照当前部署 ----------------
 BACKUP_DIR="${TARGET_DIR}/backups/pre-upgrade-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-# 绝对化：下方 pg_dump 在 (cd TARGET_DIR) 子 shell 内做重定向，BACKUP_DIR 为相对路径时会按新 CWD 解析错位
+# 转为绝对路径：后续步骤会切换目录，相对路径会解析到错误位置
 BACKUP_DIR=$(cd "$BACKUP_DIR" && pwd)
 cp "${TARGET_DIR}/docker-compose.yaml" "${TARGET_DIR}/.env" "$BACKUP_DIR/" \
   || die "快照失败（compose/.env → ${BACKUP_DIR}）"
@@ -240,7 +238,7 @@ case ",$PROFILES," in
     ;;
 esac
 
-# 先按当前配置停止写入，避免旧容器在配置更换后继续占用缓冲目录。
+# 先停止当前 Vector，避免更换配置期间继续写入缓冲目录。
 log_info "暂停 House 并停止当前 Vector；数据目录和已停止的容器均保留..."
 pause_house "$TARGET_DIR" || die "暂停 House 失败，升级中止"
 stop_vector_services "$TARGET_DIR" || die "停止 Vector 失败，升级中止，尚未替换配置"
@@ -290,7 +288,7 @@ wait_services_healthy "${TARGET_DIR}" || {
   exit 1
 }
 
-# 系统日志表已停止写入；存量数据设置 7 天 TTL，由后台按分区回收
+# 系统日志表已停写，存量数据设置 7 天 TTL（按分区异步回收）
 log_info "设置存量 ClickHouse 系统日志 TTL（7 天）..."
 apply_system_log_ttl "${TARGET_DIR}"
 

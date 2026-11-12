@@ -13,8 +13,8 @@
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib.sh
-source "${SCRIPT_DIR}/lib.sh"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 RUN_DIR="swanlab"
 DATA_PATH="./data"
@@ -185,7 +185,7 @@ MAX_METRICS_PER_COPY=20000
 COMPOSE_PROFILES=${PROFILE_LIST}
 
 # ---- 业务副本数（单机资源紧张可设为 1）----
-# Vector 固定两个服务，各自独占缓冲目录，禁止使用 --scale。
+# Vector 默认两个实例，各自独占缓冲目录，禁止使用 --scale。
 SERVER_REPLICAS=2
 AUTH_REPLICAS=2
 HOUSE_REPLICAS=2

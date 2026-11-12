@@ -96,13 +96,13 @@ services:
       - gateway-plugins:/plugins
 
   # ---------------- 指标管道 ----------------
-  # 每个进程独占缓冲目录；vector-1 沿用原目录，升级时无需搬移数据
+  # 每个进程独占缓冲目录：vector-1 → data/vector-1，vector-2 → data/vector-2
   vector-1:
     <<: *vector
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - ./config/vector/render.sh:/etc/vector/render.sh:ro
-      - ${DATA_PATH:-./data}/vector:/var/lib/vector
+      - ${DATA_PATH:-./data}/vector-1:/var/lib/vector
 
   vector-2:
     <<: *vector

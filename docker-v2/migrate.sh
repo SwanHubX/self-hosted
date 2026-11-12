@@ -8,21 +8,17 @@
 #   ./migrate.sh /opt/swanlab -o -y                 # 离线镜像与免交互确认
 #
 # 功能：
-#   将旧版 SwanLab（docker 单实例架构）迁移至 docker-v2 架构。
+#   将旧版（fluent-bit）部署迁移到 docker-v2。
 #
-# 实现思路：
-#   1. 校验旧版运行目录与服务运行状态。
-#   2. 备份旧版配置文件（compose 与 .env）。
-#   3. 停止数据上报服务并等待 ClickHouse 数据写入完成。
-#   4. 停止旧版容器，铺设 docker-v2 配置文件并合并环境变量。
-#   5. 启动 docker-v2 服务并等待健康检查通过。
+# 流程：
+#   校验旧部署 → 备份配置 → 等待数据写入完成 → 下线旧容器 → 铺设新配置 → 启动并等待健康检查
 set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib.sh
-source "${SCRIPT_DIR}/lib.sh"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
-# 新部署的项目名固定为 swanlab，原地迁移依赖同名网络与容器前缀
+# 项目名固定为 swanlab（原地迁移依赖同名网络）
 PROJECT_NAME="swanlab"
 # 旧版部署的业务容器列表
 LEGACY_CONTAINERS="swanlab-postgres swanlab-redis swanlab-clickhouse swanlab-minio swanlab-fluentbit swanlab-house swanlab-server"
