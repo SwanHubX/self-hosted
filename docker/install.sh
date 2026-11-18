@@ -441,7 +441,7 @@ services:
   # swanlab services
   swanlab-server:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-server:v3.6.0
+    image: repo.swanlab.cn/self-hosted/swanlab-server:v3.6.4
     container_name: swanlab-server
     depends_on:
       postgres:
@@ -455,7 +455,7 @@ services:
       - SERVER_PREFIX=/api
       - ACCESS_KEY=swanlab
       - SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - VERSION=3.6.0
+      - VERSION=3.6.4
     labels:
       - "traefik.http.services.swanlab-server.loadbalancer.server.port=3000"
       - "traefik.http.routers.swanlab-server.rule=PathPrefix(\`/api\`)"
@@ -468,7 +468,7 @@ services:
       retries: 3
   swanlab-house:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-house:v3.6.0
+    image: repo.swanlab.cn/self-hosted/swanlab-house:v3.6.4
     container_name: swanlab-house
     depends_on:
       clickhouse:
@@ -497,7 +497,7 @@ services:
       retries: 3
   swanlab-cloud:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v3.6.0
+    image: repo.swanlab.cn/self-hosted/swanlab-cloud:v3.6.4
     container_name: swanlab-cloud
     depends_on:
       swanlab-server:
@@ -512,7 +512,7 @@ services:
       start_period: 5s
   swanlab-next:
     <<: *common
-    image: repo.swanlab.cn/self-hosted/swanlab-next:v3.6.0
+    image: repo.swanlab.cn/self-hosted/swanlab-next:v3.6.4
     container_name: swanlab-next
     depends_on:
       swanlab-server:
@@ -603,7 +603,7 @@ else
     echo "  ____) \ V  V / (_| | | | | |___| (_| | |_) |";
     echo " |_____/ \_/\_/ \__,_|_| |_|______\__,_|_.__/ ";
     echo "                                              ";
-     echo " Self-Hosted Docker v3.6.0 - @SwanLab"
+     echo " Self-Hosted Docker v3.6.4 - @SwanLab"
     echo -e "${reset}"
     print_access_urls() {
       local port="${EXPOSE_PORT}"
