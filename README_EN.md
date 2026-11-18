@@ -232,7 +232,7 @@ The compatibility of the self-hosted version with the SDK (i.e., [swanlab](https
 
 | Self-hosted Version | Supported SDK Version                     |
 | ------------------- | ----------------------------------------- |
-| v3.6.4              | v0.7.6 ~ latest                           |
+| v3.6.4              | v0.7.6 ~ v0.10.6                          |
 | v3.6.0              | v0.7.6 ~ v0.10.5                          |
 | v3.5.0              | v0.7.6 ~ v0.10.4                          |
 | v3.4.0              | v0.7.6 ~ v0.10.4                          |
