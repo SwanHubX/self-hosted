@@ -32,7 +32,8 @@ SwanLab 私有化部署服务，支持Docker、云应用、纯离线环境部署
 
 **v3.6.4 (2026.11.18)**
 
-<!-- TODO: 补充更新内容 -->
+- 🎬 `swanlab.Video` 图表支持 `mp4` 格式文件，参考 [swanlab.Video-API文档](https://docs.swanlab.cn/api/py-video.html)
+- 🐞 修复了新版多视图看板分组交互的一些问题
 
 **v3.6.0 (2026.11.11)**
 

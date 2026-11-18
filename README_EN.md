@@ -32,7 +32,8 @@ Self-hosted SwanLab service supports Docker, cloud app, and fully offline deploy
 
 **v3.6.4 (2026.11.18)**
 
-<!-- TODO: 补充更新内容 -->
+- 🎬 `swanlab.Video` chart now supports mp4 format files. See [swanlab.Video-API-Docs](https://docs.swanlab.cn/en/api/py-video.html)
+- 🐞 Fixed several issues with the grouping interaction in the new multi-view dashboard
 
 **v3.6.0 (2026.11.11)**
 
